@@ -1,0 +1,333 @@
+// Modelo de dados do sistema de gestão da loja 4 Irmãos.
+// Cada "model" vira uma tabela no banco (PostgreSQL do Supabase).
+// Documentação rápida: valores monetários usam Decimal (evita erro de arredondamento);
+// quantidades usam 3 casas (a loja vende frações: metros, quilos, sacos).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────────────────────────── Enums (listas de opções) ─────────────────────────────
+
+enum TipoPessoa {
+  PF // Pessoa Física (CPF)
+  PJ // Pessoa Jurídica (CNPJ)
+}
+
+enum PapelUsuario {
+  ADMIN
+  GERENTE
+  VENDEDOR
+  ESTOQUE
+}
+
+enum TipoMovimentoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum OrigemMovimento {
+  NOTA_ENTRADA
+  VENDA
+  AJUSTE_MANUAL
+  DEVOLUCAO
+  INVENTARIO
+}
+
+enum StatusNotaEntrada {
+  IMPORTADA         // acabou de ser lida (XML/foto), ainda não conferida
+  PENDENTE_REVISAO  // precisa vincular itens a produtos
+  PROCESSADA        // deu entrada no estoque
+  CANCELADA
+}
+
+enum FonteNota {
+  XML
+  FOTO
+  MANUAL
+}
+
+enum StatusVenda {
+  ABERTA
+  FINALIZADA
+  CANCELADA
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  CARTAO_DEBITO
+  CARTAO_CREDITO
+  FIADO
+  TRANSFERENCIA
+  OUTRO
+}
+
+enum TipoLancamentoConta {
+  DEBITO  // aumenta a dívida do cliente (compra no fiado)
+  CREDITO // reduz a dívida (pagamento do cliente)
+}
+
+// ───────────────────────────── Usuários (login pelo Supabase) ─────────────────────────────
+
+// Perfil do funcionário. O login/senha fica no Supabase Auth; aqui guardamos papel e dados.
+model Usuario {
+  id           String       @id @db.Uuid // igual ao id do usuário no Supabase Auth
+  nome         String
+  email        String       @unique
+  papel        PapelUsuario @default(VENDEDOR)
+  ativo        Boolean      @default(true)
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+
+  vendas     Venda[]
+  movimentos EstoqueMovimento[]
+}
+
+// ───────────────────────────── Cadastros básicos ─────────────────────────────
+
+model Categoria {
+  id       String    @id @default(cuid())
+  nome     String    @unique
+  criadoEm DateTime  @default(now())
+  produtos Produto[]
+}
+
+model Fornecedor {
+  id                String     @id @default(cuid())
+  tipoPessoa        TipoPessoa @default(PJ)
+  cpfCnpj           String     @unique
+  razaoSocial       String
+  nomeFantasia      String?
+  inscricaoEstadual String?
+  email             String?
+  telefone          String?
+  cep               String?
+  logradouro        String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  cidade            String?
+  uf                String?    @db.Char(2)
+  observacoes       String?
+  ativo             Boolean    @default(true)
+  criadoEm          DateTime   @default(now())
+  atualizadoEm      DateTime   @updatedAt
+
+  notas            NotaEntrada[]
+  produtosFornecidos Produto[]
+}
+
+model Cliente {
+  id            String     @id @default(cuid())
+  tipoPessoa    TipoPessoa @default(PF)
+  cpfCnpj       String?    @unique
+  nome          String
+  email         String?
+  telefone      String?
+  cep           String?
+  logradouro    String?
+  numero        String?
+  complemento   String?
+  bairro        String?
+  cidade        String?
+  uf            String?    @db.Char(2)
+  limiteCredito Decimal    @default(0) @db.Decimal(14, 2)
+  saldoConta    Decimal    @default(0) @db.Decimal(14, 2) // saldo devedor: positivo = cliente deve
+  observacoes   String?
+  ativo         Boolean    @default(true)
+  criadoEm      DateTime   @default(now())
+  atualizadoEm  DateTime   @updatedAt
+
+  vendas      Venda[]
+  pagamentos  Pagamento[]
+  lancamentos LancamentoConta[]
+}
+
+model Produto {
+  id                 String     @id @default(cuid())
+  sku                String?    @unique // código interno da loja
+  codigoBarras       String?    @unique // EAN/GTIN da embalagem
+  descricao          String
+  unidade            String     @default("UN") // UN, KG, M, M2, M3, SC (saco), CX, L...
+  ncm                String? // classificação fiscal do produto
+  cest               String?
+  categoriaId        String?
+  fornecedorPadraoId String?
+  precoCusto         Decimal    @default(0) @db.Decimal(14, 4)
+  precoVenda         Decimal    @default(0) @db.Decimal(14, 2)
+  saldoEstoque       Decimal    @default(0) @db.Decimal(14, 3)
+  estoqueMinimo      Decimal    @default(0) @db.Decimal(14, 3)
+  ativo              Boolean    @default(true)
+  criadoEm           DateTime   @default(now())
+  atualizadoEm       DateTime   @updatedAt
+
+  categoria       Categoria?         @relation(fields: [categoriaId], references: [id])
+  fornecedorPadrao Fornecedor?       @relation(fields: [fornecedorPadraoId], references: [id])
+  movimentos      EstoqueMovimento[]
+  itensNota       NotaEntradaItem[]
+  itensVenda      VendaItem[]
+
+  @@index([categoriaId])
+  @@index([descricao])
+}
+
+// ───────────────────────────── Estoque (histórico de movimentos) ─────────────────────────────
+
+// Cada entrada/saída de estoque vira uma linha aqui (livro-razão do estoque).
+// O saldo atual fica em Produto.saldoEstoque, atualizado junto com o movimento.
+model EstoqueMovimento {
+  id            String               @id @default(cuid())
+  produtoId     String
+  tipo          TipoMovimentoEstoque
+  origem        OrigemMovimento
+  quantidade    Decimal              @db.Decimal(14, 3) // sempre positivo; "tipo" indica a direção
+  custoUnitario Decimal?             @db.Decimal(14, 4)
+  saldoApos     Decimal              @db.Decimal(14, 3) // saldo do produto depois deste movimento
+  referenciaId  String? // id da nota de entrada ou da venda que gerou o movimento
+  observacao    String?
+  usuarioId     String?              @db.Uuid
+  criadoEm      DateTime             @default(now())
+
+  produto Produto  @relation(fields: [produtoId], references: [id])
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([produtoId])
+  @@index([criadoEm])
+}
+
+// ───────────────────────────── Entrada de mercadoria (Notas Fiscais) ─────────────────────────────
+
+model NotaEntrada {
+  id            String            @id @default(cuid())
+  fornecedorId  String?
+  fonte         FonteNota         @default(XML)
+  chaveAcesso   String?           @unique @db.Char(44) // chave de 44 dígitos da NF-e
+  numero        String?
+  serie         String?
+  modelo        String? // 55 = NF-e, 65 = NFC-e
+  dataEmissao   DateTime?
+  dataEntrada   DateTime          @default(now())
+  valorProdutos Decimal           @default(0) @db.Decimal(14, 2)
+  valorTotal    Decimal           @default(0) @db.Decimal(14, 2)
+  status        StatusNotaEntrada @default(IMPORTADA)
+  xmlConteudo   String? // XML bruto da nota (quando fonte = XML)
+  arquivoUrl    String? // caminho do arquivo no Storage do Supabase
+  fotoUrl       String? // foto da nota (quando fonte = FOTO)
+  observacoes   String?
+  criadoEm      DateTime          @default(now())
+  atualizadoEm  DateTime          @updatedAt
+
+  fornecedor Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  itens      NotaEntradaItem[]
+
+  @@index([fornecedorId])
+}
+
+model NotaEntradaItem {
+  id               String   @id @default(cuid())
+  notaEntradaId    String
+  produtoId        String? // vinculado depois da conferência (pode nascer vazio)
+  codigoFornecedor String? // cProd do XML (código do produto no fornecedor)
+  codigoBarras     String? // cEAN do XML (código de barras), quando informado
+  descricaoNota    String
+  ncm              String?
+  cfop             String?
+  unidade          String?
+  quantidade       Decimal  @db.Decimal(14, 3)
+  valorUnitario    Decimal  @db.Decimal(14, 4)
+  valorTotal       Decimal  @db.Decimal(14, 2)
+  criadoEm         DateTime @default(now())
+
+  nota    NotaEntrada @relation(fields: [notaEntradaId], references: [id], onDelete: Cascade)
+  produto Produto?    @relation(fields: [produtoId], references: [id])
+
+  @@index([notaEntradaId])
+}
+
+// ───────────────────────────── Vendas (PDV) ─────────────────────────────
+
+model Venda {
+  id           String      @id @default(cuid())
+  numero       Int         @unique @default(autoincrement())
+  clienteId    String? // vazio = venda de balcão sem cadastro
+  usuarioId    String?     @db.Uuid
+  dataVenda    DateTime    @default(now())
+  subtotal     Decimal     @default(0) @db.Decimal(14, 2)
+  desconto     Decimal     @default(0) @db.Decimal(14, 2)
+  total        Decimal     @default(0) @db.Decimal(14, 2)
+  status       StatusVenda @default(ABERTA)
+  observacoes  String?
+  idLocal      String?     @unique // id gerado no PDV offline (garante que não duplica na sincronização)
+  criadoEm     DateTime    @default(now())
+  atualizadoEm DateTime    @updatedAt
+
+  cliente     Cliente?          @relation(fields: [clienteId], references: [id])
+  usuario     Usuario?          @relation(fields: [usuarioId], references: [id])
+  itens       VendaItem[]
+  pagamentos  Pagamento[]
+  lancamentos LancamentoConta[]
+
+  @@index([clienteId])
+  @@index([dataVenda])
+}
+
+model VendaItem {
+  id            String  @id @default(cuid())
+  vendaId       String
+  produtoId     String
+  descricao     String
+  quantidade    Decimal @db.Decimal(14, 3)
+  precoUnitario Decimal @db.Decimal(14, 2)
+  desconto      Decimal @default(0) @db.Decimal(14, 2)
+  total         Decimal @db.Decimal(14, 2)
+
+  venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([vendaId])
+}
+
+model Pagamento {
+  id         String         @id @default(cuid())
+  vendaId    String?
+  clienteId  String? // usado em pagamentos avulsos de fiado (sem venda)
+  forma      FormaPagamento
+  valor      Decimal        @db.Decimal(14, 2)
+  data       DateTime       @default(now())
+  observacao String?
+  criadoEm   DateTime       @default(now())
+
+  venda   Venda?   @relation(fields: [vendaId], references: [id])
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([vendaId])
+}
+
+// ───────────────────────────── Conta corrente do cliente (fiado) ─────────────────────────────
+
+// Livro-razão da conta do cliente. Débito = comprou fiado; Crédito = pagou.
+// O saldo atual fica em Cliente.saldoConta.
+model LancamentoConta {
+  id         String              @id @default(cuid())
+  clienteId  String
+  tipo       TipoLancamentoConta
+  valor      Decimal             @db.Decimal(14, 2)
+  saldoApos  Decimal             @db.Decimal(14, 2)
+  vendaId    String?
+  descricao  String?
+  data       DateTime            @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  @@index([clienteId])
+}
