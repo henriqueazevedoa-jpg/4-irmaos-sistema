@@ -28,6 +28,35 @@ Para **parar**:
 
 ---
 
+## 📱 Usar no celular (com câmera para ler código de barras)
+
+O computador continua usando `http://127.0.0.1:5173` normalmente. Para usar no **celular** (na mesma rede Wi-Fi da loja) — inclusive a **câmera** para ler código de barras — os navegadores exigem HTTPS. Isso já está configurado; só falta um passo único no celular: **instalar o certificado**.
+
+**Passo 1 — Baixar o certificado no celular** (uma vez só). No navegador do celular, abra:
+
+```
+http://SEU_IP:5173/certificado-4irmaos.crt
+```
+
+> Troque `SEU_IP` pelo IP mostrado ao rodar `./start.sh` (ex.: `192.168.18.84`). Se o IP mudar (trocou de rede/roteador), rode `./gerar-certificado-celular.sh` para gerar de novo.
+
+**Passo 2 — Instalar o certificado:**
+
+- **Android:** Configurações → Segurança → *Instalar um certificado* → *Certificado CA* → escolha o arquivo baixado → confirme. (O caminho muda por marca; pode buscar "instalar certificado" nas Configurações.)
+- **iPhone:** ao baixar no Safari, ele avisa que quer instalar um "perfil". Depois vá em Configurações → Geral → *VPN e Gerenciamento de Dispositivo* → toque no perfil → **Instalar**. Em seguida: Configurações → Geral → Sobre → *Configurações de Confiança do Certificado* → **ative** o certificado.
+
+**Passo 3 — Acessar o sistema no celular:**
+
+```
+https://SEU_IP:5443
+```
+
+Pronto: aparece o cadeado de "seguro" e a câmera funciona. 🎉
+
+> 💡 O **leitor de código de barras USB** (de balcão) funciona no computador sem nada disso — é só bipar no campo "Bipe o código de barras aqui" na tela de venda.
+
+---
+
 ## 🧭 O que já existe
 
 - ✅ Banco de dados PostgreSQL (via Supabase) com **login e armazenamento de arquivos** prontos.

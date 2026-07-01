@@ -12,6 +12,10 @@ apps/web/dist/
 .env.*
 !.env.example
 
+# Certificados HTTPS locais (gerados na máquina)
+apps/web/certs/
+apps/web/public/certificado-4irmaos.crt
+
 # Supabase (dados locais, temporários)
 supabase/.temp/
 supabase/.branches/

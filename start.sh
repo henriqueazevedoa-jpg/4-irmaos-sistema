@@ -36,12 +36,21 @@ supabase start >/dev/null 2>&1 || supabase start
 echo "🔧 Atualizando as tabelas do banco..."
 ( cd apps/api && npx prisma migrate deploy && npx prisma generate >/dev/null 2>&1 )
 
-# 5) Sobe o servidor (API) em segundo plano e a interface (web) na frente.
+# 5) Sobe API (segundo plano), encaminhador HTTPS p/ celular (se houver certificado)
+#    e a interface web (primeiro plano).
+
+# Descobre o IP desta máquina na rede da loja (para acesso pelo celular)
+IP_LOJA=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+' || echo "SEU_IP")
+
 echo ""
 echo "======================================================"
 echo "  ✅ Tudo pronto!"
-echo "  • Abra no navegador:  http://127.0.0.1:5173"
+echo "  • No computador:      http://127.0.0.1:5173"
 echo "  • Painel do banco:    http://127.0.0.1:55323"
+if [ -f apps/web/certs/cert.pem ]; then
+  echo "  • No celular (rede):  https://$IP_LOJA:5443"
+  echo "    (a câmera no celular precisa do certificado instalado — veja o README)"
+fi
 echo ""
 echo "  Para parar: aperte Ctrl+C aqui e depois rode ./stop.sh"
 echo "======================================================"
@@ -51,8 +60,12 @@ echo ""
 npm run dev -w @quatro-irmaos/api &
 API_PID=$!
 
-# Ao encerrar (Ctrl+C), derruba também a API
-trap 'kill $API_PID 2>/dev/null' EXIT INT TERM
+# Inicia o encaminhador HTTPS para o celular (só age se houver certificado)
+node apps/web/https-proxy.mjs &
+PROXY_PID=$!
+
+# Ao encerrar (Ctrl+C), derruba também a API e o encaminhador
+trap 'kill $API_PID $PROXY_PID 2>/dev/null' EXIT INT TERM
 
 # Inicia a interface web (fica em primeiro plano)
 npm run dev -w @quatro-irmaos/web
