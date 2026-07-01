@@ -7,11 +7,14 @@ try {
   // sem .env — tudo bem, usamos as variáveis do ambiente
 }
 
+// Trata texto vazio como "não informado" (evita falha se o campo vier em branco na nuvem).
+const opcional = z.preprocess((v) => (v === "" ? undefined : v), z.string().optional());
+
 const schema = z.object({
-  DATABASE_URL: z.string().url(),
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().optional(),
-  SUPABASE_SERVICE_KEY: z.string().optional(),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatório"),
+  SUPABASE_URL: opcional,
+  SUPABASE_ANON_KEY: opcional,
+  SUPABASE_SERVICE_KEY: opcional,
   PORT: z.coerce.number().default(3333),
 });
 
