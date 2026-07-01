@@ -28,3 +28,6 @@ npm-debug.log*
 
 # Prisma
 apps/api/prisma/*.db
+
+# Arquivo pessoal de senhas (nunca versionar)
+/senhas
