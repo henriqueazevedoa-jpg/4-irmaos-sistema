@@ -88,6 +88,26 @@ export async function rotasProdutos(app: FastifyInstance) {
     return { dados };
   });
 
+  // Busca um produto ativo pelo código de barras (usado pela leitura no PDV).
+  app.get("/produtos/por-codigo-barras/:codigo", async (req) => {
+    const { codigo } = z.object({ codigo: z.string().min(1) }).parse(req.params);
+    const produto = await prisma.produto.findFirst({
+      where: { codigoBarras: codigo, ativo: true },
+      select: {
+        id: true,
+        descricao: true,
+        sku: true,
+        unidade: true,
+        precoVenda: true,
+        saldoEstoque: true,
+      },
+    });
+    if (!produto) {
+      throw app.httpErrors.notFound(`Nenhum produto com o código de barras ${codigo}.`);
+    }
+    return produto;
+  });
+
   app.get("/produtos/:id", async (req) => {
     const { id } = idParam.parse(req.params);
     return prisma.produto.findUniqueOrThrow({ where: { id }, include: incluirRelacoes });

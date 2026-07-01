@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Modal,
@@ -13,9 +13,16 @@ import {
   Text,
   Badge,
   Alert,
+  ActionIcon,
+  Tooltip,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconInfoCircle } from "@tabler/icons-react";
+import { IconInfoCircle, IconCamera } from "@tabler/icons-react";
+
+// Carrega o leitor de câmera só quando for usado.
+const LeitorCodigoBarras = lazy(() =>
+  import("../components/LeitorCodigoBarras").then((m) => ({ default: m.LeitorCodigoBarras }))
+);
 import { api } from "../lib/api";
 import { useLista, useSalvar, useRemover } from "../hooks/useCadastro";
 import { TabelaCadastro } from "../components/TabelaCadastro";
@@ -62,6 +69,7 @@ export function ProdutosPage() {
   const [incluirInativos, setIncluirInativos] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [scannerAberto, setScannerAberto] = useState(false);
 
   const { data, isFetching } = useLista<Produto>(RECURSO, {
     pagina,
@@ -199,7 +207,21 @@ export function ProdutosPage() {
             <TextInput label="Descrição" withAsterisk {...form.getInputProps("descricao")} />
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <TextInput label="Código interno (SKU)" {...form.getInputProps("sku")} />
-              <TextInput label="Código de barras" {...form.getInputProps("codigoBarras")} />
+              <TextInput
+                label="Código de barras"
+                rightSection={
+                  <Tooltip label="Ler com a câmera">
+                    <ActionIcon
+                      variant="subtle"
+                      onClick={() => setScannerAberto(true)}
+                      aria-label="Ler código de barras com a câmera"
+                    >
+                      <IconCamera size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                }
+                {...form.getInputProps("codigoBarras")}
+              />
             </SimpleGrid>
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
               <Autocomplete
@@ -284,6 +306,16 @@ export function ProdutosPage() {
           </Stack>
         </form>
       </Modal>
+
+      {scannerAberto && (
+        <Suspense fallback={null}>
+          <LeitorCodigoBarras
+            aberto
+            aoFechar={() => setScannerAberto(false)}
+            aoLer={(codigo) => form.setFieldValue("codigoBarras", codigo)}
+          />
+        </Suspense>
+      )}
     </Stack>
   );
 }

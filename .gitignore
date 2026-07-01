@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 apps/web/dist/
+*.tsbuildinfo
 
 # Ambiente / segredos
 .env

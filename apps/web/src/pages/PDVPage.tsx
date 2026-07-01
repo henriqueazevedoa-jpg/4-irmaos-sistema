@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -11,19 +11,33 @@ import {
   Card,
   Table,
   Text,
+  TextInput,
   ActionIcon,
+  Tooltip,
   Grid,
   Divider,
   Textarea,
   Alert,
   Center,
 } from "@mantine/core";
-import { IconTrash, IconShoppingCartPlus, IconCheck, IconInfoCircle } from "@tabler/icons-react";
+import {
+  IconTrash,
+  IconShoppingCartPlus,
+  IconCheck,
+  IconInfoCircle,
+  IconBarcode,
+  IconCamera,
+} from "@tabler/icons-react";
 import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda } from "../lib/formato";
 import { FORMAS_PAGAMENTO } from "../lib/pagamento";
 import type { ProdutoOpcao, RespostaLista, Cliente, FormaPagamento } from "../lib/tipos";
+
+// Carrega o leitor de câmera só quando for usado (evita peso no carregamento inicial).
+const LeitorCodigoBarras = lazy(() =>
+  import("../components/LeitorCodigoBarras").then((m) => ({ default: m.LeitorCodigoBarras }))
+);
 
 interface ItemCarrinho {
   produtoId: string;
@@ -40,6 +54,8 @@ export function PDVPage() {
   const [desconto, setDesconto] = useState<number>(0);
   const [forma, setForma] = useState<FormaPagamento>("DINHEIRO");
   const [observacoes, setObservacoes] = useState("");
+  const [codigoBipe, setCodigoBipe] = useState("");
+  const [scannerAberto, setScannerAberto] = useState(false);
 
   const { data: produtos } = useQuery({
     queryKey: ["produtos", "opcoes"],
@@ -68,15 +84,12 @@ export function PDVPage() {
   const total = Math.max(0, subtotal - desconto);
   const ehFiado = forma === "FIADO";
 
-  function adicionar(produtoId: string | null) {
-    if (!produtoId) return;
-    const p = mapaProdutos.get(produtoId);
-    if (!p) return;
+  function adicionarProduto(p: ProdutoOpcao) {
     setCarrinho((atual) => {
-      const existe = atual.find((i) => i.produtoId === produtoId);
+      const existe = atual.find((i) => i.produtoId === p.id);
       if (existe) {
         return atual.map((i) =>
-          i.produtoId === produtoId ? { ...i, quantidade: i.quantidade + 1 } : i
+          i.produtoId === p.id ? { ...i, quantidade: i.quantidade + 1 } : i
         );
       }
       return [
@@ -90,6 +103,29 @@ export function PDVPage() {
         },
       ];
     });
+  }
+
+  function adicionarPorId(produtoId: string | null) {
+    if (!produtoId) return;
+    const p = mapaProdutos.get(produtoId);
+    if (p) adicionarProduto(p);
+  }
+
+  // Busca o produto pelo código de barras (leitor USB ou câmera) e joga no carrinho.
+  async function buscarPorCodigo(codigo: string) {
+    const cod = codigo.trim();
+    if (!cod) return;
+    try {
+      const p = await api.get<ProdutoOpcao>(
+        `/produtos/por-codigo-barras/${encodeURIComponent(cod)}`
+      );
+      adicionarProduto(p);
+      notificarSucesso(`${p.descricao} adicionado.`);
+    } catch (e) {
+      notificarErro(e);
+    } finally {
+      setCodigoBipe("");
+    }
   }
 
   function atualizarItem(produtoId: string, campos: Partial<ItemCarrinho>) {
@@ -137,13 +173,40 @@ export function PDVPage() {
         {/* Coluna do carrinho */}
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Card withBorder radius="md" padding="lg">
+            <Group gap="xs" wrap="nowrap" mb="xs">
+              <TextInput
+                style={{ flex: 1 }}
+                placeholder="Bipe o código de barras aqui..."
+                autoFocus
+                leftSection={<IconBarcode size={18} />}
+                value={codigoBipe}
+                onChange={(e) => setCodigoBipe(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    buscarPorCodigo(codigoBipe);
+                  }
+                }}
+              />
+              <Tooltip label="Ler com a câmera">
+                <ActionIcon
+                  size={36}
+                  variant="light"
+                  onClick={() => setScannerAberto(true)}
+                  aria-label="Ler com a câmera"
+                >
+                  <IconCamera size={20} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+
             <Select
-              placeholder="Buscar produto para adicionar..."
+              placeholder="...ou busque o produto pelo nome"
               searchable
               leftSection={<IconShoppingCartPlus size={18} />}
               data={opcoesProduto}
               value={null}
-              onChange={adicionar}
+              onChange={adicionarPorId}
               nothingFoundMessage="Nenhum produto"
               mb="md"
             />
@@ -293,6 +356,16 @@ export function PDVPage() {
           </Card>
         </Grid.Col>
       </Grid>
+
+      {scannerAberto && (
+        <Suspense fallback={null}>
+          <LeitorCodigoBarras
+            aberto
+            aoFechar={() => setScannerAberto(false)}
+            aoLer={buscarPorCodigo}
+          />
+        </Suspense>
+      )}
     </Stack>
   );
 }
