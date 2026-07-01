@@ -24,10 +24,11 @@ Usaremos:
 1. Crie uma conta em https://supabase.com e clique em **New project**.
 2. Dê um nome (ex.: `4-irmaos`), **crie uma senha forte para o banco e guarde-a**, e escolha a região mais próxima (ex.: São Paulo).
 3. Espere alguns minutos até o projeto ficar pronto.
-4. Vá em **Project Settings → Database → Connection string**. Você vai precisar de duas:
+4. Clique no botão **Connect** (no topo). Você vai precisar de duas conexões (ambas do **pooler**):
    - **Transaction pooler** (porta **6543**) → será a `DATABASE_URL` (adicione `?pgbouncer=true` no final).
-   - **Direct connection** (porta **5432**) → será a `DIRECT_URL`.
+   - **Session pooler** (porta **5432**, mesmo endereço `...pooler.supabase.com`) → será a `DIRECT_URL`.
    - Em ambas, troque `[YOUR-PASSWORD]` pela senha que você criou.
+   - ⚠️ **Não** use a "Direct connection" (`db.SEU_PROJETO.supabase.co`): no plano grátis ela é só IPv6 e não funciona a partir do Render.
 5. Vá em **Project Settings → API** e anote a **Project URL** e as chaves (**anon** e **service_role**).
 
 *(Referência dos valores: `apps/api/.env.production.example`.)*
