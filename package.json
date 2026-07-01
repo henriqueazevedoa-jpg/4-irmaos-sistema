@@ -15,6 +15,8 @@
     "db:stop": "supabase stop",
     "db:studio": "supabase status -o env | grep STUDIO",
     "api:dev": "npm run dev -w @quatro-irmaos/api",
-    "dev": "npm run dev -w @quatro-irmaos/api"
+    "dev": "npm run dev -w @quatro-irmaos/api",
+    "build": "npm run build -w @quatro-irmaos/web && npm run build -w @quatro-irmaos/api",
+    "start": "npm run start:prod -w @quatro-irmaos/api"
   }
 }

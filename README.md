@@ -57,6 +57,10 @@ Pronto: aparece o cadeado de "seguro" e a câmera funciona. 🎉
 
 ---
 
+## ☁️ Publicar na nuvem
+
+Para colocar o sistema no ar (acesso de qualquer lugar, HTTPS automático, backup), siga o **[guia de publicação (DEPLOY.md)](DEPLOY.md)** — GitHub + Supabase (nuvem) + Render, começando de graça.
+
 ## 🧭 O que já existe
 
 - ✅ Banco de dados PostgreSQL (via Supabase) com **login e armazenamento de arquivos** prontos.

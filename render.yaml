@@ -1,0 +1,26 @@
+# Configuração de deploy no Render (https://render.com).
+# Ao conectar o repositório do GitHub, o Render lê este arquivo e cria o serviço.
+services:
+  - type: web
+    name: quatro-irmaos-gestao
+    runtime: node
+    plan: free
+    # --include=dev é necessário porque a compilação usa ferramentas de desenvolvimento
+    # (vite, typescript, prisma), que o npm ignoraria em produção.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Preencha os valores abaixo no painel do Render (são secretos):
+      - key: DATABASE_URL # conexão do app (pooler do Supabase, porta 6543, com ?pgbouncer=true)
+        sync: false
+      - key: DIRECT_URL # conexão direta (porta 5432) — usada para aplicar as tabelas
+        sync: false
+      - key: SUPABASE_URL # (para login/arquivos no futuro)
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
