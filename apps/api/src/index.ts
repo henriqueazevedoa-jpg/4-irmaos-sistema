@@ -108,6 +108,17 @@ if (EH_PRODUCAO) {
   });
 }
 
+// Cria dados de exemplo quando a chave SEED_DEMO está ligada (útil para testar na nuvem).
+if (process.env.SEED_DEMO === "true") {
+  try {
+    const { semearDemo } = await import("./seed-demo.js");
+    await semearDemo(prisma);
+    app.log.info("✅ Dados de exemplo (SEED_DEMO) criados/atualizados.");
+  } catch (e) {
+    app.log.error(e, "Falha ao criar dados de exemplo (SEED_DEMO).");
+  }
+}
+
 app.addHook("onClose", async () => {
   await prisma.$disconnect();
 });
