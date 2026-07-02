@@ -24,28 +24,54 @@ export function LeitorCodigoBarras({ aberto, aoFechar, aoLer }: Props) {
     if (!aberto) return;
     setErro(null);
 
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Ajustes essenciais para a câmera funcionar no celular (especialmente iPhone).
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("autoplay", "true");
+    video.muted = true;
+
     let controles: IScannerControls | undefined;
     let cancelado = false;
     const leitor = new BrowserMultiFormatReader();
 
-    leitor
-      .decodeFromConstraints(
-        { video: { facingMode: { ideal: "environment" } } },
-        videoRef.current!,
-        (resultado, _erro, ctrl) => {
-          if (resultado && !cancelado) {
-            cancelado = true;
-            ctrl.stop();
-            aoLerRef.current(resultado.getText());
-            aoFecharRef.current();
-          }
+    const aoDetectar = (resultado: unknown, _erro: unknown, ctrl: IScannerControls) => {
+      const r = resultado as { getText: () => string } | undefined;
+      if (r && !cancelado) {
+        cancelado = true;
+        ctrl.stop();
+        aoLerRef.current(r.getText());
+        aoFecharRef.current();
+      }
+    };
+
+    async function iniciar() {
+      // 1ª tentativa: câmera traseira (melhor para ler código de barras)
+      try {
+        controles = await leitor.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" } } },
+          video!,
+          aoDetectar
+        );
+      } catch {
+        // 2ª tentativa: qualquer câmera disponível
+        try {
+          controles = await leitor.decodeFromVideoDevice(undefined, video!, aoDetectar);
+        } catch (e) {
+          const err = e as Error;
+          setErro(
+            `Não foi possível abrir a câmera${err?.name ? ` (${err.name})` : ""}. ` +
+              "Verifique se você tocou em 'Permitir' o acesso à câmera. " +
+              "Se estiver abrindo por dentro de outro aplicativo (Instagram, Facebook, etc.), " +
+              "abra o endereço no navegador (Chrome ou Safari)."
+          );
+          return;
         }
-      )
-      .then((c) => {
-        controles = c;
-        if (cancelado) c.stop();
-      })
-      .catch(() => setErro("Não foi possível acessar a câmera. Verifique a permissão do navegador."));
+      }
+      if (cancelado) controles?.stop();
+    }
+    iniciar();
 
     return () => {
       cancelado = true;
@@ -67,6 +93,9 @@ export function LeitorCodigoBarras({ aberto, aoFechar, aoLer }: Props) {
         )}
         <video
           ref={videoRef}
+          autoPlay
+          muted
+          playsInline
           style={{ width: "100%", borderRadius: 8, background: "#000", minHeight: 240 }}
         />
       </Stack>
