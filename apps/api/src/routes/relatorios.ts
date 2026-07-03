@@ -18,31 +18,26 @@ export async function rotasRelatorios(app: FastifyInstance) {
     const { gte, lte } = lerPeriodo(req.query);
     const filtroVenda = { status: "FINALIZADA" as const, dataVenda: { gte, lte } };
 
-    // Total e quantidade de vendas
-    const resumo = await prisma.venda.aggregate({
-      where: filtroVenda,
-      _count: { _all: true },
-      _sum: { total: true },
-    });
+    // Roda as 3 consultas independentes ao mesmo tempo (mais rápido).
+    const [resumo, formas, grupos] = await Promise.all([
+      // Total e quantidade de vendas
+      prisma.venda.aggregate({ where: filtroVenda, _count: { _all: true }, _sum: { total: true } }),
+      // Total por forma de pagamento
+      prisma.pagamento.groupBy({ by: ["forma"], where: { venda: filtroVenda }, _sum: { valor: true } }),
+      // Produtos mais vendidos
+      prisma.vendaItem.groupBy({
+        by: ["produtoId"],
+        where: { venda: filtroVenda },
+        _sum: { quantidade: true, total: true },
+        orderBy: { _sum: { total: "desc" } },
+        take: 10,
+      }),
+    ]);
     const totalVendas = resumo._count._all;
     const valorTotal = resumo._sum.total ?? new Prisma.Decimal(0);
     const ticketMedio = totalVendas > 0 ? valorTotal.div(totalVendas) : new Prisma.Decimal(0);
 
-    // Total por forma de pagamento
-    const formas = await prisma.pagamento.groupBy({
-      by: ["forma"],
-      where: { venda: filtroVenda },
-      _sum: { valor: true },
-    });
-
-    // Produtos mais vendidos
-    const grupos = await prisma.vendaItem.groupBy({
-      by: ["produtoId"],
-      where: { venda: filtroVenda },
-      _sum: { quantidade: true, total: true },
-      orderBy: { _sum: { total: "desc" } },
-      take: 10,
-    });
+    // Nomes dos produtos mais vendidos (depende do resultado acima)
     const produtos = await prisma.produto.findMany({
       where: { id: { in: grupos.map((g) => g.produtoId) } },
       select: { id: true, descricao: true, unidade: true },
@@ -67,29 +62,22 @@ export async function rotasRelatorios(app: FastifyInstance) {
 
   // ── Relatório financeiro (fiado a receber + estoque baixo) ──────────
   app.get("/relatorios/financeiro", async () => {
-    // Clientes com saldo devedor (fiado em aberto)
-    const devedores = await prisma.cliente.findMany({
-      where: { saldoConta: { gt: 0 } },
-      select: { id: true, nome: true, saldoConta: true, telefone: true },
-      orderBy: { saldoConta: "desc" },
-    });
-    const totalReceber = devedores.reduce(
-      (acc, c) => acc.plus(c.saldoConta),
-      new Prisma.Decimal(0)
-    );
-
-    // Produtos com estoque abaixo (ou igual) do mínimo
-    const ativos = await prisma.produto.findMany({
-      where: { ativo: true },
-      select: {
-        id: true,
-        descricao: true,
-        unidade: true,
-        saldoEstoque: true,
-        estoqueMinimo: true,
-      },
-      orderBy: { descricao: "asc" },
-    });
+    // As duas consultas são independentes: rodam ao mesmo tempo.
+    const [devedores, ativos] = await Promise.all([
+      // Clientes com saldo devedor (fiado em aberto)
+      prisma.cliente.findMany({
+        where: { saldoConta: { gt: 0 } },
+        select: { id: true, nome: true, saldoConta: true, telefone: true },
+        orderBy: { saldoConta: "desc" },
+      }),
+      // Produtos ativos (para achar os de estoque baixo)
+      prisma.produto.findMany({
+        where: { ativo: true },
+        select: { id: true, descricao: true, unidade: true, saldoEstoque: true, estoqueMinimo: true },
+        orderBy: { descricao: "asc" },
+      }),
+    ]);
+    const totalReceber = devedores.reduce((acc, c) => acc.plus(c.saldoConta), new Prisma.Decimal(0));
     const estoqueBaixo = ativos.filter((p) => p.saldoEstoque.lessThanOrEqualTo(p.estoqueMinimo));
 
     return {
