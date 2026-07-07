@@ -1,0 +1,49 @@
+name: Backup diário do banco
+
+# Faz uma cópia de segurança do banco de dados todos os dias e guarda por 90 dias.
+# Também pode ser rodado manualmente (botão "Run workflow" na aba Actions do GitHub).
+#
+# ⚙️ Antes de funcionar, é preciso cadastrar UM segredo no GitHub:
+#   Settings → Secrets and variables → Actions → New repository secret
+#   Nome:  DATABASE_URL_BACKUP
+#   Valor: a conexão "Session pooler" (porta 5432) do Supabase — a MESMA da DIRECT_URL
+#
+# ♻️ Como restaurar um backup (se um dia precisar):
+#   1) Baixe o arquivo .sql.gz na aba Actions (dentro da execução, em "Artifacts").
+#   2) Descompacte:  gunzip backup-AAAA-MM-DD.sql.gz
+#   3) Restaure:     psql "CONEXAO_DO_BANCO" < backup-AAAA-MM-DD.sql
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC = 03:00 no horário de Brasília
+  workflow_dispatch: {} # permite rodar manualmente
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Data de hoje
+        id: data
+        run: echo "hoje=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Gerar backup (pg_dump)
+        env:
+          CONEXAO: ${{ secrets.DATABASE_URL_BACKUP }}
+        run: |
+          if [ -z "${CONEXAO}" ]; then
+            echo "❌ Falta cadastrar o segredo DATABASE_URL_BACKUP no GitHub (veja o topo deste arquivo)."
+            exit 1
+          fi
+          # Usa o pg_dump da versão 17 (mesma do Supabase) via Docker, garantindo compatibilidade.
+          docker run --rm -e CONEXAO postgres:17-alpine \
+            sh -c 'pg_dump "$CONEXAO" --schema=public --no-owner --no-privileges' \
+            | gzip > "backup-${{ steps.data.outputs.hoje }}.sql.gz"
+          echo "Backup gerado:"
+          ls -lh backup-*.sql.gz
+
+      - name: Guardar o backup (90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ steps.data.outputs.hoje }}
+          path: backup-*.sql.gz
+          retention-days: 90
