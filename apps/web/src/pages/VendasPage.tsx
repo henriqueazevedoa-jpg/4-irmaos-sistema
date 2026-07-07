@@ -23,11 +23,13 @@ import {
   IconSearch,
   IconEye,
   IconBan,
+  IconArrowBackUp,
 } from "@tabler/icons-react";
 import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarData } from "../lib/formato";
 import { LABEL_FORMA } from "../lib/pagamento";
+import { DevolucaoModal } from "../components/DevolucaoModal";
 import type { VendaResumo, VendaDetalhe, RespostaLista } from "../lib/tipos";
 
 const POR_PAGINA = 10;
@@ -38,12 +40,23 @@ const COR_STATUS: Record<string, string> = {
   ABERTA: "yellow",
 };
 
+const LABEL_DESTINO: Record<string, string> = {
+  DINHEIRO: "Devolvido em dinheiro",
+  HAVER: "Virou crédito do cliente",
+  ABATER_FIADO: "Abateu o fiado do cliente",
+};
+
+function podeDevolver(v: VendaDetalhe) {
+  return v.itens.some((it) => Number(it.quantidade) - Number(it.quantidadeDevolvida) > 0);
+}
+
 export function VendasPage() {
   const navegar = useNavigate();
   const qc = useQueryClient();
   const [pagina, setPagina] = useState(1);
   const [busca, setBusca] = useState("");
   const [detalheId, setDetalheId] = useState<string | null>(null);
+  const [devolucaoAberta, setDevolucaoAberta] = useState(false);
 
   const { data, isFetching } = useQuery({
     queryKey: ["vendas", { pagina, busca }],
@@ -228,9 +241,50 @@ export function VendasPage() {
               <Text fw={700}>Total</Text>
               <Text fw={700}>{formatarMoeda(detalhe.total)}</Text>
             </Group>
+
+            {detalhe.devolucoes.length > 0 && (
+              <>
+                <Divider label="Devoluções" />
+                {detalhe.devolucoes.map((d) => (
+                  <Group key={d.id} justify="space-between" wrap="nowrap">
+                    <div>
+                      <Text size="sm">
+                        {formatarData(d.data)} —{" "}
+                        {d.itens.map((i) => `${Number(i.quantidade)}x ${i.descricao}`).join(", ")}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {LABEL_DESTINO[d.destino]}
+                      </Text>
+                    </div>
+                    <Text c="orange" fw={500}>
+                      − {formatarMoeda(d.valorTotal)}
+                    </Text>
+                  </Group>
+                ))}
+              </>
+            )}
+
+            {detalhe.status === "FINALIZADA" && podeDevolver(detalhe) && (
+              <Button
+                color="orange"
+                variant="light"
+                leftSection={<IconArrowBackUp size={18} />}
+                onClick={() => setDevolucaoAberta(true)}
+              >
+                Devolver itens
+              </Button>
+            )}
           </Stack>
         )}
       </Modal>
+
+      {detalhe && (
+        <DevolucaoModal
+          venda={detalhe}
+          aberto={devolucaoAberta}
+          aoFechar={() => setDevolucaoAberta(false)}
+        />
+      )}
     </Stack>
   );
 }

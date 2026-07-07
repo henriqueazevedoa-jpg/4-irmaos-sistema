@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { textoOpcional } from "../lib/campos.js";
 import { paginacaoQuery, montarPaginacao } from "../lib/http.js";
+import { abaterFiadoNasVendas } from "../lib/fiado.js";
 
 const D = Prisma.Decimal;
 
@@ -38,12 +39,27 @@ const corpoVenda = z.object({
   pagamentos: z.array(pagamentoVenda).min(1, "Informe a forma de pagamento"),
 });
 
+const corpoDevolucao = z.object({
+  itens: z
+    .array(
+      z.object({
+        vendaItemId: z.string().min(1),
+        quantidade: z.coerce.number().positive("Quantidade deve ser maior que zero"),
+      })
+    )
+    .min(1, "Selecione ao menos um item para devolver"),
+  destino: z.enum(["DINHEIRO", "HAVER", "ABATER_FIADO"]),
+  formaPagamento: z.enum(FORMAS).optional(),
+  observacao: textoOpcional,
+});
+
 const idParam = z.object({ id: z.string() });
 
 const vendaCompleta = {
   cliente: { select: { id: true, nome: true } },
   itens: { include: { produto: { select: { id: true, descricao: true, unidade: true } } } },
   pagamentos: true,
+  devolucoes: { include: { itens: true }, orderBy: { data: "desc" } },
 } satisfies Prisma.VendaInclude;
 
 export async function rotasVendas(app: FastifyInstance) {
@@ -122,6 +138,8 @@ export async function rotasVendas(app: FastifyInstance) {
           subtotal,
           desconto: descontoVenda,
           total,
+          valorFiado: fiado,
+          valorFiadoAberto: fiado, // começa todo em aberto
           status: "FINALIZADA",
           observacoes: corpo.observacoes ?? null,
           idLocal: corpo.idLocal ?? null,
@@ -256,29 +274,154 @@ export async function rotasVendas(app: FastifyInstance) {
         });
       }
 
-      // Estorna o fiado, se houver
-      const fiado = venda.pagamentos
-        .filter((p) => p.forma === "FIADO")
-        .reduce((acc, p) => acc.plus(p.valor), new D(0));
-      if (fiado.greaterThan(0) && venda.clienteId) {
+      // Estorna o fiado, se houver: tira do saldo devedor o que ainda estava em aberto,
+      // e o que o cliente já tinha pago vira crédito (haver) a favor dele.
+      if (venda.valorFiado.greaterThan(0) && venda.clienteId) {
         const cliente = await tx.cliente.findUniqueOrThrow({ where: { id: venda.clienteId } });
-        const novoSaldo = cliente.saldoConta.minus(fiado);
-        await tx.cliente.update({ where: { id: cliente.id }, data: { saldoConta: novoSaldo } });
-        await tx.lancamentoConta.create({
+        const aberto = venda.valorFiadoAberto;
+        const jaPago = venda.valorFiado.minus(aberto);
+        const novoSaldo = cliente.saldoConta.minus(aberto);
+        const novoHaver = cliente.saldoHaver.plus(jaPago);
+        await tx.cliente.update({
+          where: { id: cliente.id },
+          data: { saldoConta: novoSaldo, saldoHaver: novoHaver },
+        });
+        if (aberto.greaterThan(0)) {
+          await tx.lancamentoConta.create({
+            data: {
+              clienteId: cliente.id,
+              tipo: "CREDITO",
+              valor: aberto,
+              saldoApos: novoSaldo,
+              vendaId: venda.id,
+              descricao: `Estorno — cancelamento da venda nº ${venda.numero}`,
+            },
+          });
+        }
+      }
+
+      await tx.venda.update({
+        where: { id: venda.id },
+        data: { status: "CANCELADA", valorFiadoAberto: 0 },
+      });
+    });
+
+    return prisma.venda.findUniqueOrThrow({ where: { id }, include: vendaCompleta });
+  });
+
+  // ── Devolução (parcial) de itens de uma venda ───────────────────────
+  app.post("/vendas/:id/devolucoes", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const corpo = corpoDevolucao.parse(req.body);
+
+    const venda = await prisma.venda.findUniqueOrThrow({ where: { id }, include: { itens: true } });
+    if (venda.status !== "FINALIZADA") {
+      throw app.httpErrors.badRequest("Só é possível devolver itens de uma venda finalizada.");
+    }
+    if ((corpo.destino === "HAVER" || corpo.destino === "ABATER_FIADO") && !venda.clienteId) {
+      throw app.httpErrors.badRequest("Devolução em crédito ou abatimento de fiado exige uma venda com cliente.");
+    }
+
+    const criada = await prisma.$transaction(async (tx) => {
+      let valorTotal = new D(0);
+      const linhas = corpo.itens.map((pedido) => {
+        const item = venda.itens.find((i) => i.id === pedido.vendaItemId);
+        if (!item) throw app.httpErrors.badRequest("Um dos itens não pertence a esta venda.");
+        const disponivel = item.quantidade.minus(item.quantidadeDevolvida);
+        const qtd = new D(pedido.quantidade);
+        if (qtd.greaterThan(disponivel)) {
+          throw app.httpErrors.badRequest(
+            `Não dá para devolver ${qtd.toFixed(3)} de "${item.descricao}" (disponível: ${disponivel.toFixed(3)}).`
+          );
+        }
+        // Valor unitário líquido (considera o desconto que a linha teve)
+        const unit = item.quantidade.greaterThan(0) ? item.total.div(item.quantidade) : new D(0);
+        const totalLinha = new D(unit.mul(qtd).toFixed(2));
+        valorTotal = valorTotal.plus(totalLinha);
+        return { item, qtd, unit: new D(unit.toFixed(2)), totalLinha };
+      });
+
+      const devolucao = await tx.devolucao.create({
+        data: {
+          vendaId: venda.id,
+          clienteId: venda.clienteId,
+          valorTotal,
+          destino: corpo.destino,
+          formaPagamento: corpo.destino === "DINHEIRO" ? corpo.formaPagamento ?? "DINHEIRO" : null,
+          observacao: corpo.observacao ?? null,
+          itens: {
+            create: linhas.map((l) => ({
+              vendaItemId: l.item.id,
+              produtoId: l.item.produtoId,
+              descricao: l.item.descricao,
+              quantidade: l.qtd,
+              valorUnitario: l.unit,
+              valorTotal: l.totalLinha,
+            })),
+          },
+        },
+      });
+
+      // Marca a quantidade devolvida e devolve os itens ao estoque
+      for (const l of linhas) {
+        await tx.vendaItem.update({
+          where: { id: l.item.id },
+          data: { quantidadeDevolvida: l.item.quantidadeDevolvida.plus(l.qtd) },
+        });
+        const produto = await tx.produto.findUniqueOrThrow({ where: { id: l.item.produtoId } });
+        const novoSaldo = produto.saldoEstoque.plus(l.qtd);
+        await tx.produto.update({ where: { id: produto.id }, data: { saldoEstoque: novoSaldo } });
+        await tx.estoqueMovimento.create({
           data: {
-            clienteId: cliente.id,
-            tipo: "CREDITO",
-            valor: fiado,
+            produtoId: produto.id,
+            tipo: "ENTRADA",
+            origem: "DEVOLUCAO",
+            quantidade: l.qtd,
             saldoApos: novoSaldo,
-            vendaId: venda.id,
-            descricao: `Estorno — cancelamento da venda nº ${venda.numero}`,
+            referenciaId: venda.id,
+            observacao: `Devolução da venda nº ${venda.numero}`,
           },
         });
       }
 
-      await tx.venda.update({ where: { id: venda.id }, data: { status: "CANCELADA" } });
+      // Destino do valor da devolução
+      if (venda.clienteId && (corpo.destino === "HAVER" || corpo.destino === "ABATER_FIADO")) {
+        const cliente = await tx.cliente.findUniqueOrThrow({ where: { id: venda.clienteId } });
+        if (corpo.destino === "ABATER_FIADO") {
+          const abatido = await abaterFiadoNasVendas(tx, cliente.id, valorTotal);
+          const sobra = valorTotal.minus(abatido); // devolveu mais do que devia → vira crédito
+          const novoSaldo = cliente.saldoConta.minus(abatido);
+          const novoHaver = cliente.saldoHaver.plus(sobra);
+          await tx.cliente.update({
+            where: { id: cliente.id },
+            data: { saldoConta: novoSaldo, saldoHaver: novoHaver },
+          });
+          if (abatido.greaterThan(0)) {
+            await tx.lancamentoConta.create({
+              data: {
+                clienteId: cliente.id,
+                tipo: "CREDITO",
+                valor: abatido,
+                saldoApos: novoSaldo,
+                vendaId: venda.id,
+                descricao: `Devolução (abateu o fiado) — venda nº ${venda.numero}`,
+              },
+            });
+          }
+        } else {
+          // HAVER: vira crédito a favor do cliente
+          await tx.cliente.update({
+            where: { id: cliente.id },
+            data: { saldoHaver: cliente.saldoHaver.plus(valorTotal) },
+          });
+        }
+      }
+
+      return devolucao;
     });
 
-    return prisma.venda.findUniqueOrThrow({ where: { id }, include: vendaCompleta });
+    return reply.code(201).send(
+      await prisma.devolucao.findUniqueOrThrow({ where: { id: criada.id }, include: { itens: true } })
+    );
   });
 }

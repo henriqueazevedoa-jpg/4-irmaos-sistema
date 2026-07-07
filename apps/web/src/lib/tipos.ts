@@ -84,10 +84,21 @@ export interface VendaItemDetalhe {
   produtoId: string;
   descricao: string;
   quantidade: string;
+  quantidadeDevolvida: string;
   precoUnitario: string;
   desconto: string;
   total: string;
   produto?: { id: string; descricao: string; unidade: string } | null;
+}
+
+export type DestinoDevolucao = "DINHEIRO" | "HAVER" | "ABATER_FIADO";
+
+export interface DevolucaoResumo {
+  id: string;
+  data: string;
+  valorTotal: string;
+  destino: DestinoDevolucao;
+  itens: { descricao: string; quantidade: string; valorTotal: string }[];
 }
 
 export interface PagamentoVenda {
@@ -119,6 +130,7 @@ export interface VendaDetalhe {
   cliente: { id: string; nome: string } | null;
   itens: VendaItemDetalhe[];
   pagamentos: PagamentoVenda[];
+  devolucoes: DevolucaoResumo[];
 }
 
 export type TipoLancamento = "DEBITO" | "CREDITO";
@@ -132,8 +144,25 @@ export interface Lancamento {
   data: string;
 }
 
+export interface VendaFiado {
+  id: string;
+  numero: number;
+  dataVenda: string;
+  total: string;
+  valorFiado: string;
+  valorFiadoAberto: string;
+  itens: { descricao: string; quantidade: string; precoUnitario: string; total: string }[];
+}
+
 export interface ContaCliente {
-  cliente: { id: string; nome: string; saldoConta: string; limiteCredito: string };
+  cliente: {
+    id: string;
+    nome: string;
+    saldoConta: string;
+    saldoHaver: string;
+    limiteCredito: string;
+  };
+  vendasFiado: VendaFiado[];
   lancamentos: Lancamento[];
 }
 

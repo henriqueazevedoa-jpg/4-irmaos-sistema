@@ -75,6 +75,12 @@ enum TipoLancamentoConta {
   CREDITO // reduz a dívida (pagamento do cliente)
 }
 
+enum DestinoDevolucao {
+  DINHEIRO     // o valor foi devolvido em dinheiro/PIX/cartão ao cliente
+  HAVER        // o valor virou crédito ("haver") na conta do cliente
+  ABATER_FIADO // o valor abateu o que o cliente devia (fiado)
+}
+
 // ───────────────────────────── Usuários (login pelo Supabase) ─────────────────────────────
 
 // Perfil do funcionário. O login/senha fica no Supabase Auth; aqui guardamos papel e dados.
@@ -141,6 +147,7 @@ model Cliente {
   uf            String?    @db.Char(2)
   limiteCredito Decimal    @default(0) @db.Decimal(14, 2)
   saldoConta    Decimal    @default(0) @db.Decimal(14, 2) // saldo devedor: positivo = cliente deve
+  saldoHaver    Decimal    @default(0) @db.Decimal(14, 2) // crédito a favor do cliente (ex: devolução)
   observacoes   String?
   ativo         Boolean    @default(true)
   criadoEm      DateTime   @default(now())
@@ -149,6 +156,7 @@ model Cliente {
   vendas      Venda[]
   pagamentos  Pagamento[]
   lancamentos LancamentoConta[]
+  devolucoes  Devolucao[]
 }
 
 model Produto {
@@ -174,6 +182,7 @@ model Produto {
   movimentos      EstoqueMovimento[]
   itensNota       NotaEntradaItem[]
   itensVenda      VendaItem[]
+  itensDevolucao  DevolucaoItem[]
 
   @@index([categoriaId])
   @@index([descricao])
@@ -263,6 +272,8 @@ model Venda {
   subtotal     Decimal     @default(0) @db.Decimal(14, 2)
   desconto     Decimal     @default(0) @db.Decimal(14, 2)
   total        Decimal     @default(0) @db.Decimal(14, 2)
+  valorFiado       Decimal @default(0) @db.Decimal(14, 2) // quanto desta venda foi para o fiado
+  valorFiadoAberto Decimal @default(0) @db.Decimal(14, 2) // quanto do fiado ainda está em aberto
   status       StatusVenda @default(ABERTA)
   observacoes  String?
   idLocal      String?     @unique // id gerado no PDV offline (garante que não duplica na sincronização)
@@ -274,6 +285,7 @@ model Venda {
   itens       VendaItem[]
   pagamentos  Pagamento[]
   lancamentos LancamentoConta[]
+  devolucoes  Devolucao[]
 
   @@index([clienteId])
   @@index([dataVenda])
@@ -285,12 +297,14 @@ model VendaItem {
   produtoId     String
   descricao     String
   quantidade    Decimal @db.Decimal(14, 3)
+  quantidadeDevolvida Decimal @default(0) @db.Decimal(14, 3) // quanto deste item já foi devolvido
   precoUnitario Decimal @db.Decimal(14, 2)
   desconto      Decimal @default(0) @db.Decimal(14, 2)
   total         Decimal @db.Decimal(14, 2)
 
-  venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
-  produto Produto @relation(fields: [produtoId], references: [id])
+  venda      Venda           @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  produto    Produto         @relation(fields: [produtoId], references: [id])
+  devolucoes DevolucaoItem[]
 
   @@index([vendaId])
 }
@@ -330,4 +344,42 @@ model LancamentoConta {
   venda   Venda?  @relation(fields: [vendaId], references: [id])
 
   @@index([clienteId])
+}
+
+// ───────────────────────────── Devoluções (parciais, ligadas à venda) ─────────────────────────────
+
+model Devolucao {
+  id             String           @id @default(cuid())
+  vendaId        String
+  clienteId      String?
+  data           DateTime         @default(now())
+  valorTotal     Decimal          @db.Decimal(14, 2)
+  destino        DestinoDevolucao
+  formaPagamento FormaPagamento? // preenchido quando destino = DINHEIRO
+  observacao     String?
+  criadoEm       DateTime         @default(now())
+
+  venda   Venda           @relation(fields: [vendaId], references: [id])
+  cliente Cliente?        @relation(fields: [clienteId], references: [id])
+  itens   DevolucaoItem[]
+
+  @@index([vendaId])
+  @@index([clienteId])
+}
+
+model DevolucaoItem {
+  id            String  @id @default(cuid())
+  devolucaoId   String
+  vendaItemId   String
+  produtoId     String
+  descricao     String
+  quantidade    Decimal @db.Decimal(14, 3)
+  valorUnitario Decimal @db.Decimal(14, 2)
+  valorTotal    Decimal @db.Decimal(14, 2)
+
+  devolucao Devolucao @relation(fields: [devolucaoId], references: [id], onDelete: Cascade)
+  vendaItem VendaItem @relation(fields: [vendaItemId], references: [id])
+  produto   Produto   @relation(fields: [produtoId], references: [id])
+
+  @@index([devolucaoId])
 }
