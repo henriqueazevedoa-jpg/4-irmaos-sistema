@@ -16,8 +16,9 @@ export function App() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/vendas" element={<VendasPage />} />
+        <Route path="/vendas" element={<PDVPage />} />
         <Route path="/vendas/nova" element={<PDVPage />} />
+        <Route path="/vendas/historico" element={<VendasPage />} />
         <Route path="/produtos" element={<ProdutosPage />} />
         <Route path="/entradas" element={<NotasEntradaPage />} />
         <Route path="/entradas/:id" element={<NotaDetalhePage />} />

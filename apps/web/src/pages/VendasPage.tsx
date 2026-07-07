@@ -88,8 +88,8 @@ export function VendasPage() {
   return (
     <Stack>
       <Group justify="space-between" wrap="wrap">
-        <Title order={2}>Vendas</Title>
-        <Button leftSection={<IconPlus size={18} />} onClick={() => navegar("/vendas/nova")}>
+        <Title order={2}>Histórico de vendas</Title>
+        <Button leftSection={<IconPlus size={18} />} onClick={() => navegar("/vendas")}>
           Nova venda
         </Button>
       </Group>

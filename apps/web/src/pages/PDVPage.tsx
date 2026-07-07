@@ -1,6 +1,6 @@
 import { useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Stack,
   Group,
@@ -27,6 +27,7 @@ import {
   IconInfoCircle,
   IconBarcode,
   IconCamera,
+  IconHistory,
 } from "@tabler/icons-react";
 import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
@@ -66,14 +67,25 @@ export function PDVPage() {
     queryFn: () => api.get<RespostaLista<Cliente>>(`/clientes${query({ porPagina: 100 })}`),
   });
 
+  const qc = useQueryClient();
   const finalizar = useMutation({
     mutationFn: (payload: unknown) => api.post("/vendas", payload),
     onSuccess: () => {
       notificarSucesso("Venda registrada e estoque atualizado!");
-      navegar("/vendas");
+      limparVenda(); // já deixa a tela pronta para a próxima venda
+      qc.invalidateQueries({ queryKey: ["produtos"] }); // atualiza o estoque nas opções
     },
     onError: (e) => notificarErro(e),
   });
+
+  function limparVenda() {
+    setCarrinho([]);
+    setClienteId(null);
+    setDesconto(0);
+    setForma("DINHEIRO");
+    setObservacoes("");
+    setCodigoBipe("");
+  }
 
   const mapaProdutos = useMemo(
     () => new Map((produtos?.dados ?? []).map((p) => [p.id, p])),
@@ -167,7 +179,16 @@ export function PDVPage() {
 
   return (
     <Stack>
-      <Title order={2}>Nova venda</Title>
+      <Group justify="space-between" wrap="wrap">
+        <Title order={2}>Nova venda</Title>
+        <Button
+          variant="light"
+          leftSection={<IconHistory size={18} />}
+          onClick={() => navegar("/vendas/historico")}
+        >
+          Histórico de vendas
+        </Button>
+      </Group>
 
       <Grid gutter="md">
         {/* Coluna do carrinho */}
