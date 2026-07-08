@@ -18,7 +18,16 @@ import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
-import type { VendaDetalhe } from "../lib/tipos";
+import { imprimirHtml } from "../lib/imprimir";
+import { reciboDevolucao } from "../lib/recibos";
+import type { VendaDetalhe, DestinoDevolucao } from "../lib/tipos";
+
+interface RespostaDevolucao {
+  data: string;
+  valorTotal: string;
+  destino: DestinoDevolucao;
+  itens: { descricao: string; quantidade: string; valorUnitario: string; valorTotal: string }[];
+}
 
 interface Props {
   venda: VendaDetalhe;
@@ -45,19 +54,20 @@ export function DevolucaoModal({ venda, aberto, aoFechar }: Props) {
       const itens = venda.itens
         .filter((it) => (quantidades[it.id] ?? 0) > 0)
         .map((it) => ({ vendaItemId: it.id, quantidade: quantidades[it.id] }));
-      return api.post(`/vendas/${venda.id}/devolucoes`, {
+      return api.post<RespostaDevolucao>(`/vendas/${venda.id}/devolucoes`, {
         itens,
         destino,
         formaPagamento: destino === "DINHEIRO" ? forma : undefined,
         observacao,
       });
     },
-    onSuccess: () => {
+    onSuccess: (dev) => {
       qc.invalidateQueries({ queryKey: ["vendas"] });
       qc.invalidateQueries({ queryKey: ["produtos"] });
       qc.invalidateQueries({ queryKey: ["conta"] });
       qc.invalidateQueries({ queryKey: ["clientes"] });
       notificarSucesso("Devolução registrada e estoque atualizado.");
+      imprimirHtml(reciboDevolucao(venda, dev)); // imprime o comprovante
       aoFechar();
     },
     onError: (e) => notificarErro(e),

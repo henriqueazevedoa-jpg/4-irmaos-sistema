@@ -20,11 +20,13 @@ import {
   Accordion,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconArrowLeft, IconCash, IconGift } from "@tabler/icons-react";
+import { IconArrowLeft, IconCash, IconGift, IconPrinter } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
+import { imprimirHtml } from "../lib/imprimir";
+import { reciboConta } from "../lib/recibos";
 import type { ContaCliente, VendaFiado } from "../lib/tipos";
 
 function statusFiado(v: VendaFiado) {
@@ -164,6 +166,13 @@ export function ContaClientePage() {
             Usar crédito para abater
           </Button>
         )}
+        <Button
+          variant="default"
+          leftSection={<IconPrinter size={18} />}
+          onClick={() => imprimirHtml(reciboConta(data))}
+        >
+          Imprimir conta
+        </Button>
       </Group>
 
       {/* Compras no fiado, com status pago/parcial/em aberto */}

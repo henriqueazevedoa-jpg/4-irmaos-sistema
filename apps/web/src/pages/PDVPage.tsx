@@ -33,7 +33,9 @@ import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda } from "../lib/formato";
 import { FORMAS_PAGAMENTO } from "../lib/pagamento";
-import type { ProdutoOpcao, RespostaLista, Cliente, FormaPagamento } from "../lib/tipos";
+import { imprimirHtml } from "../lib/imprimir";
+import { reciboVenda } from "../lib/recibos";
+import type { ProdutoOpcao, RespostaLista, Cliente, FormaPagamento, VendaDetalhe } from "../lib/tipos";
 
 // Carrega o leitor de câmera só quando for usado (evita peso no carregamento inicial).
 const LeitorCodigoBarras = lazy(() =>
@@ -69,9 +71,10 @@ export function PDVPage() {
 
   const qc = useQueryClient();
   const finalizar = useMutation({
-    mutationFn: (payload: unknown) => api.post("/vendas", payload),
-    onSuccess: () => {
+    mutationFn: (payload: unknown) => api.post<VendaDetalhe>("/vendas", payload),
+    onSuccess: (venda) => {
       notificarSucesso("Venda registrada e estoque atualizado!");
+      imprimirHtml(reciboVenda(venda)); // imprime o recibo da venda
       limparVenda(); // já deixa a tela pronta para a próxima venda
       qc.invalidateQueries({ queryKey: ["produtos"] }); // atualiza o estoque nas opções
     },
