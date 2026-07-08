@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { textoOpcional } from "../lib/campos.js";
 import { abaterFiadoNasVendas } from "../lib/fiado.js";
+import { caixaAbertoId } from "../lib/caixa.js";
 
 const D = Prisma.Decimal;
 
@@ -73,7 +74,13 @@ export async function rotasContas(app: FastifyInstance) {
       const novoSaldo = cliente.saldoConta.minus(valor);
 
       await tx.pagamento.create({
-        data: { clienteId: id, forma: corpo.forma, valor, observacao: corpo.observacao ?? null },
+        data: {
+          clienteId: id,
+          forma: corpo.forma,
+          valor,
+          observacao: corpo.observacao ?? null,
+          caixaId: await caixaAbertoId(tx),
+        },
       });
       const lancamento = await tx.lancamentoConta.create({
         data: {

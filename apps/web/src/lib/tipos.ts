@@ -166,6 +166,45 @@ export interface ContaCliente {
   lancamentos: Lancamento[];
 }
 
+export type StatusCaixa = "ABERTO" | "FECHADO";
+
+export interface MovimentoCaixa {
+  id: string;
+  tipo: "SANGRIA" | "SUPRIMENTO";
+  valor: string;
+  descricao: string | null;
+  data: string;
+}
+
+export interface Caixa {
+  id: string;
+  status: StatusCaixa;
+  valorAbertura: string;
+  valorFechamentoContado: string | null;
+  observacaoAbertura: string | null;
+  observacaoFechamento: string | null;
+  abertoEm: string;
+  fechadoEm: string | null;
+  movimentos?: MovimentoCaixa[];
+}
+
+export interface ResumoCaixa {
+  valorAbertura: string;
+  porForma: { forma: FormaPagamento; total: string }[];
+  suprimentos: string;
+  sangrias: string;
+  devolucoesDinheiro: string;
+  dinheiroEsperado: string;
+  valorContado: string | null;
+  diferenca: string | null;
+  quantidadeVendas: number;
+}
+
+export interface CaixaAtual {
+  caixa: Caixa | null;
+  resumo: ResumoCaixa | null;
+}
+
 export type StatusNota = "IMPORTADA" | "PENDENTE_REVISAO" | "PROCESSADA" | "CANCELADA";
 
 export interface NotaItem {

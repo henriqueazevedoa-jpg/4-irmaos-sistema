@@ -81,6 +81,16 @@ enum DestinoDevolucao {
   ABATER_FIADO // o valor abateu o que o cliente devia (fiado)
 }
 
+enum StatusCaixa {
+  ABERTO
+  FECHADO
+}
+
+enum TipoMovimentoCaixa {
+  SANGRIA    // retirada de dinheiro da gaveta
+  SUPRIMENTO // colocação de dinheiro na gaveta (ex: troco)
+}
+
 // ───────────────────────────── Usuários (login pelo Supabase) ─────────────────────────────
 
 // Perfil do funcionário. O login/senha fica no Supabase Auth; aqui guardamos papel e dados.
@@ -268,6 +278,7 @@ model Venda {
   numero       Int         @unique @default(autoincrement())
   clienteId    String? // vazio = venda de balcão sem cadastro
   usuarioId    String?     @db.Uuid
+  caixaId      String? // caixa aberto no momento da venda
   dataVenda    DateTime    @default(now())
   subtotal     Decimal     @default(0) @db.Decimal(14, 2)
   desconto     Decimal     @default(0) @db.Decimal(14, 2)
@@ -282,6 +293,7 @@ model Venda {
 
   cliente     Cliente?          @relation(fields: [clienteId], references: [id])
   usuario     Usuario?          @relation(fields: [usuarioId], references: [id])
+  caixa       Caixa?            @relation(fields: [caixaId], references: [id])
   itens       VendaItem[]
   pagamentos  Pagamento[]
   lancamentos LancamentoConta[]
@@ -313,6 +325,7 @@ model Pagamento {
   id         String         @id @default(cuid())
   vendaId    String?
   clienteId  String? // usado em pagamentos avulsos de fiado (sem venda)
+  caixaId    String? // caixa aberto no momento
   forma      FormaPagamento
   valor      Decimal        @db.Decimal(14, 2)
   data       DateTime       @default(now())
@@ -321,9 +334,11 @@ model Pagamento {
 
   venda   Venda?   @relation(fields: [vendaId], references: [id])
   cliente Cliente? @relation(fields: [clienteId], references: [id])
+  caixa   Caixa?   @relation(fields: [caixaId], references: [id])
 
   @@index([clienteId])
   @@index([vendaId])
+  @@index([caixaId])
 }
 
 // ───────────────────────────── Conta corrente do cliente (fiado) ─────────────────────────────
@@ -354,6 +369,7 @@ model Devolucao {
   clienteId      String?
   data           DateTime         @default(now())
   valorTotal     Decimal          @db.Decimal(14, 2)
+  caixaId        String? // caixa aberto no momento
   destino        DestinoDevolucao
   formaPagamento FormaPagamento? // preenchido quando destino = DINHEIRO
   observacao     String?
@@ -361,6 +377,7 @@ model Devolucao {
 
   venda   Venda           @relation(fields: [vendaId], references: [id])
   cliente Cliente?        @relation(fields: [clienteId], references: [id])
+  caixa   Caixa?          @relation(fields: [caixaId], references: [id])
   itens   DevolucaoItem[]
 
   @@index([vendaId])
@@ -382,4 +399,39 @@ model DevolucaoItem {
   produto   Produto   @relation(fields: [produtoId], references: [id])
 
   @@index([devolucaoId])
+}
+
+// ───────────────────────────── Caixa (abertura/fechamento) ─────────────────────────────
+
+model Caixa {
+  id                     String      @id @default(cuid())
+  status                 StatusCaixa @default(ABERTO)
+  valorAbertura          Decimal     @db.Decimal(14, 2)
+  valorFechamentoContado Decimal?    @db.Decimal(14, 2) // dinheiro contado na gaveta ao fechar
+  observacaoAbertura     String?
+  observacaoFechamento   String?
+  usuarioAberturaId      String?     @db.Uuid
+  usuarioFechamentoId    String?     @db.Uuid
+  abertoEm               DateTime    @default(now())
+  fechadoEm              DateTime?
+
+  movimentos MovimentoCaixa[]
+  vendas     Venda[]
+  pagamentos Pagamento[]
+  devolucoes Devolucao[]
+
+  @@index([status])
+}
+
+model MovimentoCaixa {
+  id        String             @id @default(cuid())
+  caixaId   String
+  tipo      TipoMovimentoCaixa
+  valor     Decimal            @db.Decimal(14, 2)
+  descricao String?
+  data      DateTime           @default(now())
+
+  caixa Caixa @relation(fields: [caixaId], references: [id], onDelete: Cascade)
+
+  @@index([caixaId])
 }

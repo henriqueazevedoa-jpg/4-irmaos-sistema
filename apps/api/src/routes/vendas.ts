@@ -5,6 +5,7 @@ import { prisma } from "../prisma.js";
 import { textoOpcional } from "../lib/campos.js";
 import { paginacaoQuery, montarPaginacao } from "../lib/http.js";
 import { abaterFiadoNasVendas } from "../lib/fiado.js";
+import { caixaAbertoId } from "../lib/caixa.js";
 
 const D = Prisma.Decimal;
 
@@ -131,10 +132,14 @@ export async function rotasVendas(app: FastifyInstance) {
         }
       }
 
+      // Liga a venda ao caixa aberto (se houver)
+      const idCaixa = await caixaAbertoId(tx);
+
       // Cria a venda com itens e pagamentos
       const criada = await tx.venda.create({
         data: {
           clienteId: corpo.clienteId ?? null,
+          caixaId: idCaixa,
           subtotal,
           desconto: descontoVenda,
           total,
@@ -158,6 +163,7 @@ export async function rotasVendas(app: FastifyInstance) {
               forma: p.forma,
               valor: new D(p.valor),
               clienteId: corpo.clienteId ?? null,
+              caixaId: idCaixa,
             })),
           },
         },
@@ -341,10 +347,12 @@ export async function rotasVendas(app: FastifyInstance) {
         return { item, qtd, unit: new D(unit.toFixed(2)), totalLinha };
       });
 
+      const idCaixa = await caixaAbertoId(tx);
       const devolucao = await tx.devolucao.create({
         data: {
           vendaId: venda.id,
           clienteId: venda.clienteId,
+          caixaId: idCaixa,
           valorTotal,
           destino: corpo.destino,
           formaPagamento: corpo.destino === "DINHEIRO" ? corpo.formaPagamento ?? "DINHEIRO" : null,

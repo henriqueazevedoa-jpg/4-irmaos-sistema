@@ -9,12 +9,14 @@ import {
   IconUsers,
   IconFileImport,
   IconChartBar,
+  IconCashBanknote,
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 
 const ITENS = [
   { rotulo: "Início", para: "/", icone: IconLayoutDashboard },
   { rotulo: "Vendas", para: "/vendas", icone: IconShoppingCart },
+  { rotulo: "Caixa", para: "/caixa", icone: IconCashBanknote },
   { rotulo: "Produtos", para: "/produtos", icone: IconBox },
   { rotulo: "Entrada de mercadoria", para: "/entradas", icone: IconFileImport },
   { rotulo: "Fornecedores", para: "/fornecedores", icone: IconTruck },

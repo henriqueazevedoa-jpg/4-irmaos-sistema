@@ -16,6 +16,7 @@ import { rotasNotas } from "./routes/notas.js";
 import { rotasVendas } from "./routes/vendas.js";
 import { rotasContas } from "./routes/contas.js";
 import { rotasRelatorios } from "./routes/relatorios.js";
+import { rotasCaixa } from "./routes/caixa.js";
 
 const EH_PRODUCAO = process.env.NODE_ENV === "production";
 
@@ -86,6 +87,7 @@ await app.register(
     await api.register(rotasVendas);
     await api.register(rotasContas);
     await api.register(rotasRelatorios);
+    await api.register(rotasCaixa);
   },
   { prefix: "/api" }
 );

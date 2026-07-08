@@ -10,6 +10,7 @@ import { VendasPage } from "./pages/VendasPage";
 import { PDVPage } from "./pages/PDVPage";
 import { ContaClientePage } from "./pages/ContaClientePage";
 import { RelatoriosPage } from "./pages/RelatoriosPage";
+import { CaixaPage } from "./pages/CaixaPage";
 
 export function App() {
   return (
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/clientes/:id/conta" element={<ContaClientePage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
+        <Route path="/caixa" element={<CaixaPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppLayout>
