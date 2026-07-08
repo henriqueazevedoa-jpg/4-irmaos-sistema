@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { AppShell, Burger, Group, Title, NavLink, ScrollArea } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { AppShell, Group, Title, Button, ScrollArea } from "@mantine/core";
 import {
   IconLayoutDashboard,
   IconShoppingCart,
@@ -18,48 +17,48 @@ const ITENS = [
   { rotulo: "Vendas", para: "/vendas", icone: IconShoppingCart },
   { rotulo: "Caixa", para: "/caixa", icone: IconCashBanknote },
   { rotulo: "Produtos", para: "/produtos", icone: IconBox },
-  { rotulo: "Entrada de mercadoria", para: "/entradas", icone: IconFileImport },
+  { rotulo: "Entradas", para: "/entradas", icone: IconFileImport },
   { rotulo: "Fornecedores", para: "/fornecedores", icone: IconTruck },
   { rotulo: "Clientes", para: "/clientes", icone: IconUsers },
   { rotulo: "Relatórios", para: "/relatorios", icone: IconChartBar },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const [aberto, { toggle, close }] = useDisclosure();
   const local = useLocation();
 
   return (
-    <AppShell
-      header={{ height: 60 }}
-      navbar={{ width: 240, breakpoint: "sm", collapsed: { mobile: !aberto } }}
-      padding="md"
-    >
+    <AppShell header={{ height: 96 }} padding="md">
       <AppShell.Header>
-        <Group h="100%" px="md">
-          <Burger opened={aberto} onClick={toggle} hiddenFrom="sm" size="sm" />
+        {/* Linha 1: título */}
+        <Group h={48} px="md" align="center">
           <Title order={4}>🧱 Gestão — Loja 4 Irmãos</Title>
         </Group>
-      </AppShell.Header>
 
-      <AppShell.Navbar p="md">
-        <AppShell.Section grow component={ScrollArea}>
-          {ITENS.map((item) => (
-            <NavLink
-              key={item.para}
-              component={Link}
-              to={item.para}
-              label={item.rotulo}
-              leftSection={<item.icone size={18} />}
-              active={
-                item.para === "/"
-                  ? local.pathname === "/"
-                  : local.pathname.startsWith(item.para)
-              }
-              onClick={close}
-            />
-          ))}
-        </AppShell.Section>
-      </AppShell.Navbar>
+        {/* Linha 2: menu horizontal (estilo barra de menu clássica) */}
+        <ScrollArea type="never" style={{ borderTop: "1px solid var(--mantine-color-gray-3)", background: "var(--mantine-color-gray-0)" }}>
+          <Group h={47} px="xs" gap={2} wrap="nowrap">
+            {ITENS.map((item) => {
+              const ativo =
+                item.para === "/" ? local.pathname === "/" : local.pathname.startsWith(item.para);
+              return (
+                <Button
+                  key={item.para}
+                  component={Link}
+                  to={item.para}
+                  variant={ativo ? "filled" : "subtle"}
+                  color={ativo ? "blue" : "gray"}
+                  size="sm"
+                  radius="sm"
+                  leftSection={<item.icone size={16} />}
+                  styles={{ root: { flexShrink: 0 }, label: { fontWeight: ativo ? 600 : 500 } }}
+                >
+                  {item.rotulo}
+                </Button>
+              );
+            })}
+          </Group>
+        </ScrollArea>
+      </AppShell.Header>
 
       <AppShell.Main>{children}</AppShell.Main>
     </AppShell>
