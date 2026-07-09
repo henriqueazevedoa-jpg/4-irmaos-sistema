@@ -116,6 +116,21 @@ model Categoria {
   produtos Produto[]
 }
 
+// Funcionário / vendedor da loja (quem realizou a venda no balcão).
+// Separado do Usuario (que é o login pelo Supabase): aqui é só um cadastro simples
+// para selecionar na venda, sem necessidade de login próprio.
+model Funcionario {
+  id           String   @id @default(cuid())
+  nome         String
+  telefone     String?
+  observacoes  String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  vendas Venda[]
+}
+
 model Fornecedor {
   id                String     @id @default(cuid())
   tipoPessoa        TipoPessoa @default(PJ)
@@ -278,6 +293,7 @@ model Venda {
   numero       Int         @unique @default(autoincrement())
   clienteId    String? // vazio = venda de balcão sem cadastro
   usuarioId    String?     @db.Uuid
+  funcionarioId String? // vendedor que realizou a venda (opcional)
   caixaId      String? // caixa aberto no momento da venda
   dataVenda    DateTime    @default(now())
   subtotal     Decimal     @default(0) @db.Decimal(14, 2)
@@ -293,6 +309,7 @@ model Venda {
 
   cliente     Cliente?          @relation(fields: [clienteId], references: [id])
   usuario     Usuario?          @relation(fields: [usuarioId], references: [id])
+  funcionario Funcionario?      @relation(fields: [funcionarioId], references: [id])
   caixa       Caixa?            @relation(fields: [caixaId], references: [id])
   itens       VendaItem[]
   pagamentos  Pagamento[]

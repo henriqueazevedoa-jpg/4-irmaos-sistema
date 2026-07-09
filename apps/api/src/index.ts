@@ -11,6 +11,7 @@ import { prisma } from "./prisma.js";
 import { rotasCategorias } from "./routes/categorias.js";
 import { rotasFornecedores } from "./routes/fornecedores.js";
 import { rotasClientes } from "./routes/clientes.js";
+import { rotasFuncionarios } from "./routes/funcionarios.js";
 import { rotasProdutos } from "./routes/produtos.js";
 import { rotasNotas } from "./routes/notas.js";
 import { rotasVendas } from "./routes/vendas.js";
@@ -82,6 +83,7 @@ await app.register(
     await api.register(rotasCategorias);
     await api.register(rotasFornecedores);
     await api.register(rotasClientes);
+    await api.register(rotasFuncionarios);
     await api.register(rotasProdutos);
     await api.register(rotasNotas);
     await api.register(rotasVendas);

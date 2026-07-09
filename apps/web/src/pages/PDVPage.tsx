@@ -19,6 +19,7 @@ import {
   Textarea,
   Alert,
   Center,
+  Modal,
 } from "@mantine/core";
 import {
   IconTrash,
@@ -28,6 +29,7 @@ import {
   IconBarcode,
   IconCamera,
   IconHistory,
+  IconUserPlus,
 } from "@tabler/icons-react";
 import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
@@ -35,7 +37,7 @@ import { formatarMoeda } from "../lib/formato";
 import { FORMAS_PAGAMENTO } from "../lib/pagamento";
 import { imprimirHtml } from "../lib/imprimir";
 import { reciboVenda } from "../lib/recibos";
-import type { ProdutoOpcao, RespostaLista, Cliente, FormaPagamento, VendaDetalhe } from "../lib/tipos";
+import type { ProdutoOpcao, RespostaLista, Cliente, Funcionario, FormaPagamento, VendaDetalhe } from "../lib/tipos";
 
 // Carrega o leitor de câmera só quando for usado (evita peso no carregamento inicial).
 const LeitorCodigoBarras = lazy(() =>
@@ -54,11 +56,15 @@ export function PDVPage() {
   const navegar = useNavigate();
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [clienteId, setClienteId] = useState<string | null>(null);
+  const [vendedorId, setVendedorId] = useState<string | null>(null);
   const [desconto, setDesconto] = useState<number>(0);
   const [forma, setForma] = useState<FormaPagamento>("DINHEIRO");
   const [observacoes, setObservacoes] = useState("");
   const [codigoBipe, setCodigoBipe] = useState("");
   const [scannerAberto, setScannerAberto] = useState(false);
+  const [modalVendedor, setModalVendedor] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
+  const [novoTelefone, setNovoTelefone] = useState("");
 
   const { data: produtos } = useQuery({
     queryKey: ["produtos", "opcoes"],
@@ -68,8 +74,24 @@ export function PDVPage() {
     queryKey: ["clientes", "opcoes"],
     queryFn: () => api.get<RespostaLista<Cliente>>(`/clientes${query({ porPagina: 100 })}`),
   });
+  const { data: funcionarios } = useQuery({
+    queryKey: ["funcionarios", "opcoes"],
+    queryFn: () => api.get<RespostaLista<Funcionario>>(`/funcionarios${query({ porPagina: 100 })}`),
+  });
 
   const qc = useQueryClient();
+  const criarVendedor = useMutation({
+    mutationFn: (dados: unknown) => api.post<Funcionario>("/funcionarios", dados),
+    onSuccess: (f) => {
+      notificarSucesso("Vendedor cadastrado!");
+      qc.invalidateQueries({ queryKey: ["funcionarios"] });
+      setVendedorId(f.id); // já deixa selecionado na venda
+      setModalVendedor(false);
+      setNovoNome("");
+      setNovoTelefone("");
+    },
+    onError: (e) => notificarErro(e),
+  });
   const finalizar = useMutation({
     mutationFn: (payload: unknown) => api.post<VendaDetalhe>("/vendas", payload),
     onSuccess: (venda) => {
@@ -164,6 +186,7 @@ export function PDVPage() {
     }
     finalizar.mutate({
       clienteId: clienteId || null,
+      funcionarioId: vendedorId || null,
       desconto,
       observacoes,
       itens: carrinho.map((i) => ({
@@ -319,6 +342,30 @@ export function PDVPage() {
                 onChange={setClienteId}
               />
 
+              <Group gap="xs" align="flex-end" wrap="nowrap">
+                <Select
+                  style={{ flex: 1 }}
+                  label="Vendedor"
+                  placeholder="Quem fez a venda"
+                  searchable
+                  clearable
+                  data={(funcionarios?.dados ?? []).map((f) => ({ value: f.id, label: f.nome }))}
+                  value={vendedorId}
+                  onChange={setVendedorId}
+                  nothingFoundMessage="Nenhum vendedor cadastrado"
+                />
+                <Tooltip label="Cadastrar vendedor">
+                  <ActionIcon
+                    variant="light"
+                    size={36}
+                    onClick={() => setModalVendedor(true)}
+                    aria-label="Cadastrar vendedor"
+                  >
+                    <IconUserPlus size={20} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+
               <NumberInput
                 label="Desconto na venda"
                 min={0}
@@ -390,6 +437,45 @@ export function PDVPage() {
           />
         </Suspense>
       )}
+
+      <Modal
+        opened={modalVendedor}
+        onClose={() => setModalVendedor(false)}
+        title="Cadastrar vendedor"
+        size="sm"
+      >
+        <Stack>
+          <TextInput
+            label="Nome"
+            withAsterisk
+            data-autofocus
+            value={novoNome}
+            onChange={(e) => setNovoNome(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && novoNome.trim()) {
+                criarVendedor.mutate({ nome: novoNome, telefone: novoTelefone });
+              }
+            }}
+          />
+          <TextInput
+            label="Telefone"
+            value={novoTelefone}
+            onChange={(e) => setNovoTelefone(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setModalVendedor(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => criarVendedor.mutate({ nome: novoNome, telefone: novoTelefone })}
+              loading={criarVendedor.isPending}
+              disabled={!novoNome.trim()}
+            >
+              Salvar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

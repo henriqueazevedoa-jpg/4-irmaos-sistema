@@ -71,6 +71,7 @@ export function reciboVenda(v: VendaDetalhe): string {
     ${cabecalho("RECIBO DE VENDA")}
     ${linha(`Venda nº ${v.numero}`, formatarDataHora(v.dataVenda))}
     ${v.cliente ? `<div>Cliente: ${esc(v.cliente.nome)}</div>` : ""}
+    ${v.funcionario ? `<div>Vendedor: ${esc(v.funcionario.nome)}</div>` : ""}
     <hr>
     ${itens}
     <hr>

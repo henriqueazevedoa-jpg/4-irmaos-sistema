@@ -33,6 +33,7 @@ const pagamentoVenda = z.object({
 
 const corpoVenda = z.object({
   clienteId: z.string().nullish(),
+  funcionarioId: z.string().nullish(),
   desconto: z.coerce.number().min(0).default(0),
   observacoes: textoOpcional,
   idLocal: z.string().nullish(), // id gerado no PDV offline (evita duplicar na sincronização)
@@ -58,6 +59,7 @@ const idParam = z.object({ id: z.string() });
 
 const vendaCompleta = {
   cliente: { select: { id: true, nome: true } },
+  funcionario: { select: { id: true, nome: true } },
   itens: { include: { produto: { select: { id: true, descricao: true, unidade: true } } } },
   pagamentos: true,
   devolucoes: { include: { itens: true }, orderBy: { data: "desc" } },
@@ -139,6 +141,7 @@ export async function rotasVendas(app: FastifyInstance) {
       const criada = await tx.venda.create({
         data: {
           clienteId: corpo.clienteId ?? null,
+          funcionarioId: corpo.funcionarioId ?? null,
           caixaId: idCaixa,
           subtotal,
           desconto: descontoVenda,

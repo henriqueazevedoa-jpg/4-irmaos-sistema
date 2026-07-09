@@ -30,6 +30,7 @@ import {
   IconCircleCheck,
   IconChevronDown,
   IconChevronUp,
+  IconArrowBackUp,
 } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
@@ -37,7 +38,8 @@ import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
 import { imprimirHtml } from "../lib/imprimir";
 import { reciboConta, reciboContaA4, reciboQuitacao } from "../lib/recibos";
-import type { ContaCliente, VendaFiado, HistoricoConta, Lancamento } from "../lib/tipos";
+import { DevolucaoModal } from "../components/DevolucaoModal";
+import type { ContaCliente, VendaFiado, HistoricoConta, Lancamento, VendaDetalhe } from "../lib/tipos";
 
 function statusFiado(v: VendaFiado) {
   const aberto = Number(v.valorFiadoAberto);
@@ -50,9 +52,11 @@ function statusFiado(v: VendaFiado) {
 function TabelaExtrato({
   lancamentos,
   itensPorVenda,
+  onDevolver,
 }: {
   lancamentos: Lancamento[];
   itensPorVenda?: Map<string, VendaFiado>;
+  onDevolver?: (vendaId: string) => void;
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   if (lancamentos.length === 0) return <Text c="dimmed">Nenhuma movimentação.</Text>;
@@ -133,6 +137,19 @@ function TabelaExtrato({
                           ))}
                         </Table.Tbody>
                       </Table>
+                      {onDevolver && l.vendaId && (
+                        <Group justify="flex-end" mt="xs">
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="orange"
+                            leftSection={<IconArrowBackUp size={16} />}
+                            onClick={() => onDevolver(l.vendaId!)}
+                          >
+                            Devolver itens desta compra
+                          </Button>
+                        </Group>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 )}
@@ -155,10 +172,18 @@ export function ContaClientePage() {
   const [observacao, setObservacao] = useState("");
 
   const [histAberto, setHistAberto] = useState(false);
+  const [vendaDevolver, setVendaDevolver] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["conta", id],
     queryFn: () => api.get<ContaCliente>(`/clientes/${id}/conta`),
+  });
+
+  // Carrega a venda completa (com itens já devolvidos) só quando o usuário pede a devolução.
+  const { data: vendaParaDevolver } = useQuery({
+    queryKey: ["vendas", vendaDevolver],
+    queryFn: () => api.get<VendaDetalhe>(`/vendas/${vendaDevolver}`),
+    enabled: !!vendaDevolver,
   });
 
   const { data: historico } = useQuery({
@@ -325,7 +350,11 @@ export function ContaClientePage() {
 
       {/* Extrato do ciclo atual — clique na seta de uma compra para ver os itens */}
       <Title order={4}>Movimentações da conta (desde a última quitação)</Title>
-      <TabelaExtrato lancamentos={data.lancamentos} itensPorVenda={itensPorVenda} />
+      <TabelaExtrato
+        lancamentos={data.lancamentos}
+        itensPorVenda={itensPorVenda}
+        onDevolver={setVendaDevolver}
+      />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title="Registrar pagamento">
         <Stack>
@@ -406,6 +435,15 @@ export function ContaClientePage() {
           </Stack>
         )}
       </Modal>
+
+      {/* Devolução de itens de uma compra (aberta a partir do extrato) */}
+      {vendaParaDevolver && vendaParaDevolver.id === vendaDevolver && (
+        <DevolucaoModal
+          venda={vendaParaDevolver}
+          aberto
+          aoFechar={() => setVendaDevolver(null)}
+        />
+      )}
     </Stack>
   );
 }

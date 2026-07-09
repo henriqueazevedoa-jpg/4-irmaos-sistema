@@ -59,6 +59,14 @@ export interface Cliente {
   ativo: boolean;
 }
 
+export interface Funcionario {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  observacoes: string | null;
+  ativo: boolean;
+}
+
 export interface ProdutoOpcao {
   id: string;
   descricao: string;
@@ -128,6 +136,7 @@ export interface VendaDetalhe {
   status: StatusVenda;
   observacoes: string | null;
   cliente: { id: string; nome: string } | null;
+  funcionario: { id: string; nome: string } | null;
   itens: VendaItemDetalhe[];
   pagamentos: PagamentoVenda[];
   devolucoes: DevolucaoResumo[];

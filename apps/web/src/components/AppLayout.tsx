@@ -6,6 +6,7 @@ import {
   IconBox,
   IconTruck,
   IconUsers,
+  IconUserCog,
   IconFileImport,
   IconChartBar,
   IconCashBanknote,
@@ -20,6 +21,7 @@ const ITENS = [
   { rotulo: "Entradas", para: "/entradas", icone: IconFileImport },
   { rotulo: "Fornecedores", para: "/fornecedores", icone: IconTruck },
   { rotulo: "Clientes", para: "/clientes", icone: IconUsers },
+  { rotulo: "Funcionários", para: "/funcionarios", icone: IconUserCog },
   { rotulo: "Relatórios", para: "/relatorios", icone: IconChartBar },
 ];
 
