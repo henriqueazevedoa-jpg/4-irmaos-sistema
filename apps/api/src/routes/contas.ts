@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { textoOpcional } from "../lib/campos.js";
-import { abaterFiadoNasVendas } from "../lib/fiado.js";
+import { abaterFiadoNasVendas, aplicarHaverNoFiado } from "../lib/fiado.js";
 import { caixaAbertoId } from "../lib/caixa.js";
 
 const D = Prisma.Decimal;
@@ -130,6 +130,9 @@ export async function rotasContas(app: FastifyInstance) {
         },
       });
       await tx.cliente.update({ where: { id }, data: { saldoConta: novoSaldo } });
+
+      // Se o cliente tinha crédito (haver) e ainda deve, abate o restante com o crédito.
+      await aplicarHaverNoFiado(tx, id);
 
       return { novoSaldo, lancamento };
     });

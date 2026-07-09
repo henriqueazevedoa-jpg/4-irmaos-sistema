@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../prisma.js";
 import { textoOpcional } from "../lib/campos.js";
 import { paginacaoQuery, montarPaginacao } from "../lib/http.js";
-import { abaterFiadoNasVendas } from "../lib/fiado.js";
+import { abaterFiadoNasVendas, aplicarHaverNoFiado } from "../lib/fiado.js";
 import { caixaAbertoId } from "../lib/caixa.js";
 
 const D = Prisma.Decimal;
@@ -206,6 +206,8 @@ export async function rotasVendas(app: FastifyInstance) {
             descricao: `Compra no fiado — venda nº ${criada.numero}`,
           },
         });
+        // Se o cliente já tinha crédito (haver), abate direto da nova compra.
+        await aplicarHaverNoFiado(tx, cliente.id);
       }
 
       return criada;
@@ -313,6 +315,9 @@ export async function rotasVendas(app: FastifyInstance) {
         where: { id: venda.id },
         data: { status: "CANCELADA", valorFiadoAberto: 0 },
       });
+
+      // O que o cliente havia pago virou crédito; se ainda deve em outras compras, abate direto.
+      if (venda.clienteId) await aplicarHaverNoFiado(tx, venda.clienteId);
     });
 
     return prisma.venda.findUniqueOrThrow({ where: { id }, include: vendaCompleta });
@@ -426,6 +431,8 @@ export async function rotasVendas(app: FastifyInstance) {
             data: { saldoHaver: cliente.saldoHaver.plus(valorTotal) },
           });
         }
+        // Se ainda houver dívida em aberto, o crédito criado abate direto.
+        await aplicarHaverNoFiado(tx, cliente.id);
       }
 
       return devolucao;

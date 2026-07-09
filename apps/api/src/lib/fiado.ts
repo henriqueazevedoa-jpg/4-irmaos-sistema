@@ -29,3 +29,35 @@ export async function abaterFiadoNasVendas(
 
   return valor.minus(restante);
 }
+
+// Se o cliente tem crédito (haver) E ainda deve, usa o crédito para abater a dívida
+// automaticamente. Assim crédito e dívida nunca ficam parados lado a lado: o crédito
+// entra direto como abatimento no fiado. Deve ser chamado após qualquer movimento que
+// mexa nos saldos (venda no fiado, pagamento, devolução, cancelamento).
+export async function aplicarHaverNoFiado(tx: Tx, clienteId: string): Promise<Prisma.Decimal> {
+  const cliente = await tx.cliente.findUniqueOrThrow({ where: { id: clienteId } });
+  if (cliente.saldoHaver.lessThanOrEqualTo(0) || cliente.saldoConta.lessThanOrEqualTo(0)) {
+    return new D(0);
+  }
+
+  const usar = D.min(cliente.saldoHaver, cliente.saldoConta);
+  await abaterFiadoNasVendas(tx, clienteId, usar);
+  const novoSaldo = cliente.saldoConta.minus(usar);
+  const novoHaver = cliente.saldoHaver.minus(usar);
+
+  await tx.cliente.update({
+    where: { id: clienteId },
+    data: { saldoConta: novoSaldo, saldoHaver: novoHaver },
+  });
+  await tx.lancamentoConta.create({
+    data: {
+      clienteId,
+      tipo: "CREDITO",
+      valor: usar,
+      saldoApos: novoSaldo,
+      descricao: "Crédito (devolução) aplicado no fiado",
+    },
+  });
+
+  return usar;
+}
