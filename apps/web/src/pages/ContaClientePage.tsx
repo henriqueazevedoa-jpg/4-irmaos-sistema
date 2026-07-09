@@ -49,6 +49,16 @@ function statusFiado(v: VendaFiado) {
   return { label: "Em aberto", cor: "orange" };
 }
 
+// Rótulo e cor de cada linha do extrato, deixando claro o tipo de movimento
+// (compra no fiado, pagamento, devolução ou estorno de cancelamento).
+function rotuloLancamento(l: Lancamento): { label: string; cor: string } {
+  if (l.tipo === "DEBITO") return { label: "Compra (fiado)", cor: "orange" };
+  const d = (l.descricao ?? "").toLowerCase();
+  if (d.includes("devolu")) return { label: "Devolução", cor: "grape" };
+  if (d.includes("cancel") || d.includes("estorno")) return { label: "Estorno", cor: "gray" };
+  return { label: "Pagamento", cor: "teal" };
+}
+
 function TabelaExtrato({
   lancamentos,
   itensPorVenda,
@@ -84,6 +94,7 @@ function TabelaExtrato({
             const compra =
               l.tipo === "DEBITO" && l.vendaId ? itensPorVenda?.get(l.vendaId) : undefined;
             const aberto = abertos.has(l.id);
+            const mov = rotuloLancamento(l);
             return (
               <Fragment key={l.id}>
                 <Table.Tr>
@@ -104,8 +115,8 @@ function TabelaExtrato({
                         <span style={{ width: 22, display: "inline-block" }} />
                       )}
                       <div>
-                        <Badge color={l.tipo === "DEBITO" ? "orange" : "teal"} variant="light">
-                          {l.tipo === "DEBITO" ? "Compra (fiado)" : "Pagamento/Crédito"}
+                        <Badge color={mov.cor} variant="light">
+                          {mov.label}
                         </Badge>
                         {l.descricao && (
                           <Text size="xs" c="dimmed">
@@ -116,7 +127,7 @@ function TabelaExtrato({
                     </Group>
                   </Table.Td>
                   <Table.Td>
-                    <Text c={l.tipo === "DEBITO" ? "orange" : "teal"}>
+                    <Text c={mov.cor}>
                       {l.tipo === "DEBITO" ? "+" : "−"} {formatarMoeda(l.valor)}
                     </Text>
                   </Table.Td>
