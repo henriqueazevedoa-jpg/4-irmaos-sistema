@@ -164,6 +164,12 @@ export interface ContaCliente {
   };
   vendasFiado: VendaFiado[];
   lancamentos: Lancamento[];
+  inicioCiclo: string | null;
+}
+
+export interface HistoricoConta {
+  vendasFiado: VendaFiado[];
+  lancamentos: Lancamento[];
 }
 
 export type StatusCaixa = "ABERTO" | "FECHADO";

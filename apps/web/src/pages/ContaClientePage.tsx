@@ -20,14 +20,14 @@ import {
   Accordion,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconArrowLeft, IconCash, IconGift, IconPrinter } from "@tabler/icons-react";
+import { IconArrowLeft, IconCash, IconGift, IconPrinter, IconHistory, IconCircleCheck } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
 import { imprimirHtml } from "../lib/imprimir";
-import { reciboConta } from "../lib/recibos";
-import type { ContaCliente, VendaFiado } from "../lib/tipos";
+import { reciboConta, reciboQuitacao } from "../lib/recibos";
+import type { ContaCliente, VendaFiado, HistoricoConta, Lancamento } from "../lib/tipos";
 
 function statusFiado(v: VendaFiado) {
   const aberto = Number(v.valorFiadoAberto);
@@ -35,6 +35,47 @@ function statusFiado(v: VendaFiado) {
   if (aberto <= 0.001) return { label: "Pago", cor: "teal" };
   if (aberto < fiado) return { label: "Parcial", cor: "yellow" };
   return { label: "Em aberto", cor: "orange" };
+}
+
+function TabelaExtrato({ lancamentos }: { lancamentos: Lancamento[] }) {
+  if (lancamentos.length === 0) return <Text c="dimmed">Nenhuma movimentação.</Text>;
+  return (
+    <Table.ScrollContainer minWidth={520}>
+      <Table striped verticalSpacing="sm">
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Data</Table.Th>
+            <Table.Th>Movimento</Table.Th>
+            <Table.Th>Valor</Table.Th>
+            <Table.Th>Saldo</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {lancamentos.map((l) => (
+            <Table.Tr key={l.id}>
+              <Table.Td>{formatarData(l.data)}</Table.Td>
+              <Table.Td>
+                <Badge color={l.tipo === "DEBITO" ? "orange" : "teal"} variant="light">
+                  {l.tipo === "DEBITO" ? "Compra (fiado)" : "Pagamento/Crédito"}
+                </Badge>
+                {l.descricao && (
+                  <Text size="xs" c="dimmed">
+                    {l.descricao}
+                  </Text>
+                )}
+              </Table.Td>
+              <Table.Td>
+                <Text c={l.tipo === "DEBITO" ? "orange" : "teal"}>
+                  {l.tipo === "DEBITO" ? "+" : "−"} {formatarMoeda(l.valor)}
+                </Text>
+              </Table.Td>
+              <Table.Td>{formatarMoeda(l.saldoApos)}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
 }
 
 export function ContaClientePage() {
@@ -46,9 +87,17 @@ export function ContaClientePage() {
   const [forma, setForma] = useState<string>("DINHEIRO");
   const [observacao, setObservacao] = useState("");
 
+  const [histAberto, setHistAberto] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ["conta", id],
     queryFn: () => api.get<ContaCliente>(`/clientes/${id}/conta`),
+  });
+
+  const { data: historico } = useQuery({
+    queryKey: ["conta", id, "historico"],
+    queryFn: () => api.get<HistoricoConta>(`/clientes/${id}/conta/historico`),
+    enabled: histAberto,
   });
 
   function invalidar() {
@@ -166,19 +215,39 @@ export function ContaClientePage() {
             Usar crédito para abater
           </Button>
         )}
+        {deve > 0 && (
+          <Button
+            variant="default"
+            leftSection={<IconPrinter size={18} />}
+            onClick={() => imprimirHtml(reciboConta(data))}
+          >
+            Imprimir conta
+          </Button>
+        )}
+        {deve <= 0 && (
+          <Button
+            variant="light"
+            color="teal"
+            leftSection={<IconCircleCheck size={18} />}
+            onClick={() => imprimirHtml(reciboQuitacao(data))}
+          >
+            Comprovante de quitação
+          </Button>
+        )}
         <Button
-          variant="default"
-          leftSection={<IconPrinter size={18} />}
-          onClick={() => imprimirHtml(reciboConta(data))}
+          variant="subtle"
+          color="gray"
+          leftSection={<IconHistory size={18} />}
+          onClick={() => setHistAberto(true)}
         >
-          Imprimir conta
+          Histórico completo
         </Button>
       </Group>
 
-      {/* Compras no fiado, com status pago/parcial/em aberto */}
-      <Title order={4}>Compras no fiado</Title>
+      {/* Compras em aberto (ciclo atual) */}
+      <Title order={4}>Compras em aberto</Title>
       {data.vendasFiado.length === 0 ? (
-        <Text c="dimmed">Nenhuma compra no fiado.</Text>
+        <Text c="dimmed">Nenhuma compra em aberto — conta quitada. 👍</Text>
       ) : (
         <Accordion variant="separated">
           {data.vendasFiado.map((v) => {
@@ -228,47 +297,9 @@ export function ContaClientePage() {
         </Accordion>
       )}
 
-      {/* Extrato (movimentações da conta) */}
-      <Title order={4}>Extrato</Title>
-      {data.lancamentos.length === 0 ? (
-        <Text c="dimmed">Nenhuma movimentação na conta.</Text>
-      ) : (
-        <Table.ScrollContainer minWidth={520}>
-          <Table striped verticalSpacing="sm">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Data</Table.Th>
-                <Table.Th>Movimento</Table.Th>
-                <Table.Th>Valor</Table.Th>
-                <Table.Th>Saldo</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {data.lancamentos.map((l) => (
-                <Table.Tr key={l.id}>
-                  <Table.Td>{formatarData(l.data)}</Table.Td>
-                  <Table.Td>
-                    <Badge color={l.tipo === "DEBITO" ? "orange" : "teal"} variant="light">
-                      {l.tipo === "DEBITO" ? "Compra (fiado)" : "Pagamento/Crédito"}
-                    </Badge>
-                    {l.descricao && (
-                      <Text size="xs" c="dimmed">
-                        {l.descricao}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text c={l.tipo === "DEBITO" ? "orange" : "teal"}>
-                      {l.tipo === "DEBITO" ? "+" : "−"} {formatarMoeda(l.valor)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>{formatarMoeda(l.saldoApos)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      )}
+      {/* Extrato do ciclo atual */}
+      <Title order={4}>Extrato (desde a última quitação)</Title>
+      <TabelaExtrato lancamentos={data.lancamentos} />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title="Registrar pagamento">
         <Stack>
@@ -306,6 +337,45 @@ export function ContaClientePage() {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* Histórico completo (todas as compras e movimentações) */}
+      <Modal
+        opened={histAberto}
+        onClose={() => setHistAberto(false)}
+        title="Histórico completo da conta"
+        size="lg"
+      >
+        {!historico ? (
+          <Center py="xl">
+            <Loader />
+          </Center>
+        ) : (
+          <Stack>
+            <Title order={5}>Todas as compras no fiado</Title>
+            {historico.vendasFiado.length === 0 ? (
+              <Text c="dimmed">Nenhuma compra no fiado.</Text>
+            ) : (
+              historico.vendasFiado.map((v) => {
+                const st = statusFiado(v);
+                return (
+                  <Group key={v.id} justify="space-between" wrap="nowrap">
+                    <Text size="sm">
+                      Venda nº {v.numero} — {formatarData(v.dataVenda)} · {formatarMoeda(v.total)}
+                    </Text>
+                    <Badge color={st.cor} variant="light">
+                      {st.label}
+                    </Badge>
+                  </Group>
+                );
+              })
+            )}
+            <Title order={5} mt="sm">
+              Extrato completo
+            </Title>
+            <TabelaExtrato lancamentos={historico.lancamentos} />
+          </Stack>
+        )}
       </Modal>
     </Stack>
   );

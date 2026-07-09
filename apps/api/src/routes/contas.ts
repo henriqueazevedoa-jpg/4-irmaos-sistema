@@ -19,39 +19,69 @@ const corpoPagamento = z.object({
 });
 
 export async function rotasContas(app: FastifyInstance) {
-  // ── Conta do cliente: quanto deve, crédito (haver), compras no fiado e extrato ──
+  // Colunas dos itens da venda mostradas na conta
+  const selectVendaFiado = {
+    id: true,
+    numero: true,
+    dataVenda: true,
+    total: true,
+    valorFiado: true,
+    valorFiadoAberto: true,
+    itens: { select: { descricao: true, quantidade: true, precoUnitario: true, total: true } },
+  } as const;
+
+  // ── Conta do cliente (CICLO ATUAL): só o que está em aberto desde a última quitação ──
   app.get("/clientes/:id/conta", async (req) => {
     const { id } = idParam.parse(req.params);
 
-    const [cliente, vendasFiado, lancamentos] = await Promise.all([
-      prisma.cliente.findUniqueOrThrow({
-        where: { id },
-        select: { id: true, nome: true, saldoConta: true, saldoHaver: true, limiteCredito: true },
+    const cliente = await prisma.cliente.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, nome: true, saldoConta: true, saldoHaver: true, limiteCredito: true },
+    });
+
+    // "Última quitação" = o lançamento mais recente em que o saldo chegou a ZERO.
+    // O ciclo atual é tudo que veio depois disso.
+    const quitacao = await prisma.lancamentoConta.findFirst({
+      where: { clienteId: id, saldoApos: 0 },
+      orderBy: { data: "desc" },
+      select: { data: true },
+    });
+    const inicioCiclo = quitacao?.data ?? null;
+
+    const [vendasFiado, lancamentos] = await Promise.all([
+      // Compras ainda em aberto (o que o cliente deve agora)
+      prisma.venda.findMany({
+        where: { clienteId: id, valorFiadoAberto: { gt: 0 }, status: "FINALIZADA" },
+        orderBy: { dataVenda: "desc" },
+        select: selectVendaFiado,
       }),
-      // Compras que foram (total ou parte) no fiado
+      // Extrato só do ciclo atual (após a última quitação)
+      prisma.lancamentoConta.findMany({
+        where: { clienteId: id, ...(inicioCiclo ? { data: { gt: inicioCiclo } } : {}) },
+        orderBy: { data: "desc" },
+        take: 200,
+      }),
+    ]);
+
+    return { cliente, vendasFiado, lancamentos, inicioCiclo };
+  });
+
+  // ── Histórico COMPLETO da conta (todas as compras e movimentações) ──
+  app.get("/clientes/:id/conta/historico", async (req) => {
+    const { id } = idParam.parse(req.params);
+    const [vendasFiado, lancamentos] = await Promise.all([
       prisma.venda.findMany({
         where: { clienteId: id, valorFiado: { gt: 0 }, status: "FINALIZADA" },
         orderBy: { dataVenda: "desc" },
-        select: {
-          id: true,
-          numero: true,
-          dataVenda: true,
-          total: true,
-          valorFiado: true,
-          valorFiadoAberto: true,
-          itens: {
-            select: { descricao: true, quantidade: true, precoUnitario: true, total: true },
-          },
-        },
+        select: selectVendaFiado,
       }),
       prisma.lancamentoConta.findMany({
         where: { clienteId: id },
         orderBy: { data: "desc" },
-        take: 100,
+        take: 500,
       }),
     ]);
-
-    return { cliente, vendasFiado, lancamentos };
+    return { vendasFiado, lancamentos };
   });
 
   // ── Registrar um pagamento do cliente (abate as compras mais antigas) ─

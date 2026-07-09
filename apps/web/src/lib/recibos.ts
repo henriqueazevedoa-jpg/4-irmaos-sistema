@@ -121,6 +121,22 @@ export function reciboConta(conta: ContaCliente): string {
   `);
 }
 
+// ─────────────────────── Comprovante de QUITAÇÃO ────────────────────
+export function reciboQuitacao(conta: ContaCliente): string {
+  return envelope(`
+    ${cabecalho("COMPROVANTE DE QUITAÇÃO")}
+    <div>Cliente: ${esc(conta.cliente.nome)}</div>
+    ${linha("Emitido em", formatarDataHora(new Date().toISOString()))}
+    <hr>
+    <div class="c b mt">CONTA QUITADA</div>
+    <div class="c">Nada consta em aberto.</div>
+    ${Number(conta.cliente.saldoHaver) > 0 ? linha("Crédito a favor", formatarMoeda(conta.cliente.saldoHaver)) : ""}
+    <hr>
+    <div class="c sm">*** Documento sem valor fiscal ***</div>
+    <div class="c sm">${LOJA.rodape}</div>
+  `);
+}
+
 // ─────────────────────── Recibo da DEVOLUÇÃO ────────────────────────
 interface DevolucaoImpressao {
   data: string;
