@@ -86,36 +86,64 @@ export function reciboVenda(v: VendaDetalhe): string {
   `);
 }
 
-// ───────────────────────── Recibo da CONTA ─────────────────────────
+// Junta os dados do demonstrativo (usado no 80mm e no A4).
+function dadosDemonstrativo(conta: ContaCliente) {
+  const compras = conta.comprasCiclo;
+  const pagamentos = conta.lancamentos.filter((l) => l.tipo === "CREDITO");
+  const totalComprado = compras.reduce((s, v) => s + Number(v.valorFiado), 0);
+  const totalPago = pagamentos.reduce((s, p) => s + Number(p.valor), 0);
+  return {
+    compras,
+    pagamentos,
+    totalComprado,
+    totalPago,
+    deve: Number(conta.cliente.saldoConta),
+    haver: Number(conta.cliente.saldoHaver),
+  };
+}
+
+// ───────────────── Demonstrativo da CONTA (bobina 80mm) ─────────────
 export function reciboConta(conta: ContaCliente): string {
-  const deve = Number(conta.cliente.saldoConta);
-  const haver = Number(conta.cliente.saldoHaver);
+  const d = dadosDemonstrativo(conta);
 
-  // Só as compras que ainda têm valor em aberto
-  const abertas = conta.vendasFiado.filter((v) => Number(v.valorFiadoAberto) > 0.001);
+  const secCompras = d.compras.length
+    ? d.compras
+        .map(
+          (v) => `
+        <div class="b mt">Venda nº ${v.numero} — ${formatarData(v.dataVenda)}</div>
+        ${v.itens
+          .map((it) =>
+            linha(
+              `<span class="sm">${formatarNumero(it.quantidade)}x ${esc(it.descricao)}</span>`,
+              `<span class="sm">${formatarMoeda(it.total)}</span>`
+            )
+          )
+          .join("")}`
+        )
+        .join("")
+    : '<div class="sm">Nenhuma compra no período.</div>';
 
-  const compras = abertas
-    .map((v) => {
-      const itens = v.itens
-        .map((it) => `<div class="sm">- ${formatarNumero(it.quantidade)}x ${esc(it.descricao)} .... ${formatarMoeda(it.total)}</div>`)
-        .join("");
-      return `
-        <div class="mt b">Venda nº ${v.numero} - ${formatarData(v.dataVenda)}</div>
-        ${itens}
-        ${linha(`<span class="sm">Em aberto</span>`, formatarMoeda(v.valorFiadoAberto), "sm")}`;
-    })
-    .join("");
+  const secPagamentos = d.pagamentos.length
+    ? d.pagamentos
+        .map((p) => linha(`<span class="sm">${formatarData(p.data)} ${esc(p.descricao ?? "Pagamento")}</span>`, `<span class="sm">${formatarMoeda(p.valor)}</span>`))
+        .join("")
+    : '<div class="sm">Nenhum pagamento no período.</div>';
 
   return envelope(`
-    ${cabecalho("CONTA DO CLIENTE")}
+    ${cabecalho("DEMONSTRATIVO DA CONTA")}
     <div>Cliente: ${esc(conta.cliente.nome)}</div>
     ${linha("Emitido em", formatarDataHora(new Date().toISOString()))}
     <hr>
-    ${haver > 0 ? linha("Crédito a favor", formatarMoeda(haver)) : ""}
-    <div class="b">Compras em aberto:</div>
-    ${abertas.length ? compras : '<div class="sm">Nenhuma compra em aberto.</div>'}
+    <div class="b">COMPRAS</div>
+    ${secCompras}
+    ${linha("Total comprado", formatarMoeda(d.totalComprado), "b")}
     <hr>
-    ${linha("TOTAL A PAGAR", formatarMoeda(deve), "b lg")}
+    <div class="b">PAGAMENTOS</div>
+    ${secPagamentos}
+    ${linha("Total pago", formatarMoeda(d.totalPago), "b")}
+    <hr>
+    ${linha("SALDO DEVEDOR", formatarMoeda(d.deve), "b lg")}
+    ${d.haver > 0 ? linha("Crédito a favor", formatarMoeda(d.haver)) : ""}
     <hr>
     <div class="c sm">*** Documento sem valor fiscal ***</div>
   `);
@@ -144,27 +172,31 @@ function envelopeA4(corpo: string): string {
 }
 
 export function reciboContaA4(conta: ContaCliente): string {
-  const deve = Number(conta.cliente.saldoConta);
-  const haver = Number(conta.cliente.saldoHaver);
-  const abertas = conta.vendasFiado.filter((v) => Number(v.valorFiadoAberto) > 0.001);
+  const d = dadosDemonstrativo(conta);
 
-  const secoes = abertas
-    .map(
-      (v) => `
-      <div class="venda-cab">Venda nº ${v.numero} — ${formatarData(v.dataVenda)} (em aberto: ${formatarMoeda(v.valorFiadoAberto)})</div>
-      <table>
-        <thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Unit.</th><th class="r">Total</th></tr></thead>
-        <tbody>
-          ${v.itens
-            .map(
-              (it) =>
-                `<tr><td>${esc(it.descricao)}</td><td class="r">${formatarNumero(it.quantidade)}</td><td class="r">${formatarMoeda(it.precoUnitario)}</td><td class="r">${formatarMoeda(it.total)}</td></tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>`
-    )
-    .join("");
+  const linhasCompras = d.compras.length
+    ? d.compras
+        .map(
+          (v) => `
+        <tr><td colspan="4" style="background:#f2f2f2;font-weight:bold">Venda nº ${v.numero} — ${formatarData(v.dataVenda)}</td></tr>
+        ${v.itens
+          .map(
+            (it) =>
+              `<tr><td>${esc(it.descricao)}</td><td class="r">${formatarNumero(it.quantidade)}</td><td class="r">${formatarMoeda(it.precoUnitario)}</td><td class="r">${formatarMoeda(it.total)}</td></tr>`
+          )
+          .join("")}`
+        )
+        .join("")
+    : `<tr><td colspan="4">Nenhuma compra no período.</td></tr>`;
+
+  const linhasPagamentos = d.pagamentos.length
+    ? d.pagamentos
+        .map(
+          (p) =>
+            `<tr><td>${formatarData(p.data)}</td><td>${esc(p.descricao ?? "Pagamento")}</td><td class="r">${formatarMoeda(p.valor)}</td></tr>`
+        )
+        .join("")
+    : `<tr><td colspan="3">Nenhum pagamento no período.</td></tr>`;
 
   return envelopeA4(`
     <div class="cab">
@@ -173,10 +205,27 @@ export function reciboContaA4(conta: ContaCliente): string {
     </div>
     <div class="titulo">Demonstrativo da Conta</div>
     <div class="info"><b>Cliente:</b> ${esc(conta.cliente.nome)}</div>
-    ${haver > 0 ? `<div class="info"><b>Crédito a favor:</b> ${formatarMoeda(haver)}</div>` : ""}
-    <div style="margin-top:12px"><b>Compras em aberto:</b></div>
-    ${abertas.length ? secoes : "<div>Nenhuma compra em aberto — conta quitada.</div>"}
-    <div class="total">TOTAL A PAGAR: ${formatarMoeda(deve)}</div>
+
+    <div class="venda-cab">Compras no período</div>
+    <table>
+      <thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Unit.</th><th class="r">Total</th></tr></thead>
+      <tbody>${linhasCompras}</tbody>
+    </table>
+    <div style="text-align:right;font-weight:bold;margin-top:4px">Total comprado: ${formatarMoeda(d.totalComprado)}</div>
+
+    <div class="venda-cab">Pagamentos no período</div>
+    <table>
+      <thead><tr><th>Data</th><th>Movimento</th><th class="r">Valor</th></tr></thead>
+      <tbody>${linhasPagamentos}</tbody>
+    </table>
+    <div style="text-align:right;font-weight:bold;margin-top:4px">Total pago: ${formatarMoeda(d.totalPago)}</div>
+
+    <div class="total">
+      <div style="font-weight:normal">Total comprado: ${formatarMoeda(d.totalComprado)}</div>
+      <div style="font-weight:normal">Total pago: − ${formatarMoeda(d.totalPago)}</div>
+      <div style="font-size:18px">SALDO DEVEDOR: ${formatarMoeda(d.deve)}</div>
+      ${d.haver > 0 ? `<div style="font-weight:normal">Crédito a favor: ${formatarMoeda(d.haver)}</div>` : ""}
+    </div>
     <div class="rodape">*** Documento sem valor fiscal ***</div>
   `);
 }

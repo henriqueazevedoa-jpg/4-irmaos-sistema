@@ -163,6 +163,7 @@ export interface ContaCliente {
     limiteCredito: string;
   };
   vendasFiado: VendaFiado[];
+  comprasCiclo: VendaFiado[];
   lancamentos: Lancamento[];
   inicioCiclo: string | null;
 }

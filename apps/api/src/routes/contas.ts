@@ -48,11 +48,19 @@ export async function rotasContas(app: FastifyInstance) {
     });
     const inicioCiclo = quitacao?.data ?? null;
 
-    const [vendasFiado, lancamentos] = await Promise.all([
-      // Compras ainda em aberto (o que o cliente deve agora)
+    const filtroCiclo = inicioCiclo ? { dataVenda: { gt: inicioCiclo } } : {};
+
+    const [vendasFiado, comprasCiclo, lancamentos] = await Promise.all([
+      // Compras ainda em aberto (para a tela "Compras em aberto")
       prisma.venda.findMany({
         where: { clienteId: id, valorFiadoAberto: { gt: 0 }, status: "FINALIZADA" },
         orderBy: { dataVenda: "desc" },
+        select: selectVendaFiado,
+      }),
+      // TODAS as compras do ciclo atual (para o demonstrativo: o que comprou)
+      prisma.venda.findMany({
+        where: { clienteId: id, valorFiado: { gt: 0 }, status: "FINALIZADA", ...filtroCiclo },
+        orderBy: { dataVenda: "asc" },
         select: selectVendaFiado,
       }),
       // Extrato só do ciclo atual (após a última quitação)
@@ -63,7 +71,7 @@ export async function rotasContas(app: FastifyInstance) {
       }),
     ]);
 
-    return { cliente, vendasFiado, lancamentos, inicioCiclo };
+    return { cliente, vendasFiado, comprasCiclo, lancamentos, inicioCiclo };
   });
 
   // ── Histórico COMPLETO da conta (todas as compras e movimentações) ──
