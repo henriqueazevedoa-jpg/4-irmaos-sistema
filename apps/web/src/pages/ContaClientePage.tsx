@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,7 +17,7 @@ import {
   NumberInput,
   Select,
   Textarea,
-  Accordion,
+  ActionIcon,
   Menu,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
@@ -29,6 +29,7 @@ import {
   IconHistory,
   IconCircleCheck,
   IconChevronDown,
+  IconChevronUp,
 } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
@@ -46,8 +47,23 @@ function statusFiado(v: VendaFiado) {
   return { label: "Em aberto", cor: "orange" };
 }
 
-function TabelaExtrato({ lancamentos }: { lancamentos: Lancamento[] }) {
+function TabelaExtrato({
+  lancamentos,
+  itensPorVenda,
+}: {
+  lancamentos: Lancamento[];
+  itensPorVenda?: Map<string, VendaFiado>;
+}) {
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
   if (lancamentos.length === 0) return <Text c="dimmed">Nenhuma movimentação.</Text>;
+
+  const alternar = (id: string) =>
+    setAbertos((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
   return (
     <Table.ScrollContainer minWidth={520}>
       <Table striped verticalSpacing="sm">
@@ -60,27 +76,69 @@ function TabelaExtrato({ lancamentos }: { lancamentos: Lancamento[] }) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {lancamentos.map((l) => (
-            <Table.Tr key={l.id}>
-              <Table.Td>{formatarData(l.data)}</Table.Td>
-              <Table.Td>
-                <Badge color={l.tipo === "DEBITO" ? "orange" : "teal"} variant="light">
-                  {l.tipo === "DEBITO" ? "Compra (fiado)" : "Pagamento/Crédito"}
-                </Badge>
-                {l.descricao && (
-                  <Text size="xs" c="dimmed">
-                    {l.descricao}
-                  </Text>
+          {lancamentos.map((l) => {
+            const compra =
+              l.tipo === "DEBITO" && l.vendaId ? itensPorVenda?.get(l.vendaId) : undefined;
+            const aberto = abertos.has(l.id);
+            return (
+              <Fragment key={l.id}>
+                <Table.Tr>
+                  <Table.Td>{formatarData(l.data)}</Table.Td>
+                  <Table.Td>
+                    <Group gap={6} wrap="nowrap" align="flex-start">
+                      {compra ? (
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          size="sm"
+                          onClick={() => alternar(l.id)}
+                          aria-label="Ver itens da compra"
+                        >
+                          {aberto ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                        </ActionIcon>
+                      ) : (
+                        <span style={{ width: 22, display: "inline-block" }} />
+                      )}
+                      <div>
+                        <Badge color={l.tipo === "DEBITO" ? "orange" : "teal"} variant="light">
+                          {l.tipo === "DEBITO" ? "Compra (fiado)" : "Pagamento/Crédito"}
+                        </Badge>
+                        {l.descricao && (
+                          <Text size="xs" c="dimmed">
+                            {l.descricao}
+                          </Text>
+                        )}
+                      </div>
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text c={l.tipo === "DEBITO" ? "orange" : "teal"}>
+                      {l.tipo === "DEBITO" ? "+" : "−"} {formatarMoeda(l.valor)}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>{formatarMoeda(l.saldoApos)}</Table.Td>
+                </Table.Tr>
+                {compra && aberto && (
+                  <Table.Tr>
+                    <Table.Td colSpan={4} style={{ background: "var(--mantine-color-gray-0)" }}>
+                      <Table>
+                        <Table.Tbody>
+                          {compra.itens.map((it, i) => (
+                            <Table.Tr key={i}>
+                              <Table.Td>{it.descricao}</Table.Td>
+                              <Table.Td>{formatarNumero(it.quantidade)}</Table.Td>
+                              <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
+                              <Table.Td ta="right">{formatarMoeda(it.total)}</Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    </Table.Td>
+                  </Table.Tr>
                 )}
-              </Table.Td>
-              <Table.Td>
-                <Text c={l.tipo === "DEBITO" ? "orange" : "teal"}>
-                  {l.tipo === "DEBITO" ? "+" : "−"} {formatarMoeda(l.valor)}
-                </Text>
-              </Table.Td>
-              <Table.Td>{formatarMoeda(l.saldoApos)}</Table.Td>
-            </Table.Tr>
-          ))}
+              </Fragment>
+            );
+          })}
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
@@ -145,6 +203,8 @@ export function ContaClientePage() {
 
   const deve = Number(data.cliente.saldoConta);
   const haver = Number(data.cliente.saldoHaver);
+  // Mapa vendaId -> compra (com itens), para expandir as compras no extrato
+  const itensPorVenda = new Map(data.comprasCiclo.map((v) => [v.id, v]));
 
   function confirmarUsarHaver() {
     modals.openConfirmModal({
@@ -263,62 +323,9 @@ export function ContaClientePage() {
         </Button>
       </Group>
 
-      {/* Compras em aberto (ciclo atual) */}
-      <Title order={4}>Compras em aberto</Title>
-      {data.vendasFiado.length === 0 ? (
-        <Text c="dimmed">Nenhuma compra em aberto — conta quitada. 👍</Text>
-      ) : (
-        <Accordion variant="separated">
-          {data.vendasFiado.map((v) => {
-            const st = statusFiado(v);
-            return (
-              <Accordion.Item key={v.id} value={v.id}>
-                <Accordion.Control>
-                  <Group justify="space-between" wrap="nowrap" pr="md">
-                    <div>
-                      <Text fw={500}>
-                        Venda nº {v.numero} — {formatarData(v.dataVenda)}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        Total {formatarMoeda(v.total)} · Em aberto {formatarMoeda(v.valorFiadoAberto)}
-                      </Text>
-                    </div>
-                    <Badge color={st.cor} variant="light">
-                      {st.label}
-                    </Badge>
-                  </Group>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Table>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Item</Table.Th>
-                        <Table.Th>Qtd</Table.Th>
-                        <Table.Th>Unit.</Table.Th>
-                        <Table.Th ta="right">Total</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {v.itens.map((it, i) => (
-                        <Table.Tr key={i}>
-                          <Table.Td>{it.descricao}</Table.Td>
-                          <Table.Td>{formatarNumero(it.quantidade)}</Table.Td>
-                          <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
-                          <Table.Td ta="right">{formatarMoeda(it.total)}</Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </Accordion.Panel>
-              </Accordion.Item>
-            );
-          })}
-        </Accordion>
-      )}
-
-      {/* Extrato do ciclo atual */}
-      <Title order={4}>Extrato (desde a última quitação)</Title>
-      <TabelaExtrato lancamentos={data.lancamentos} />
+      {/* Extrato do ciclo atual — clique na seta de uma compra para ver os itens */}
+      <Title order={4}>Movimentações da conta (desde a última quitação)</Title>
+      <TabelaExtrato lancamentos={data.lancamentos} itensPorVenda={itensPorVenda} />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title="Registrar pagamento">
         <Stack>
@@ -392,7 +399,10 @@ export function ContaClientePage() {
             <Title order={5} mt="sm">
               Extrato completo
             </Title>
-            <TabelaExtrato lancamentos={historico.lancamentos} />
+            <TabelaExtrato
+              lancamentos={historico.lancamentos}
+              itensPorVenda={new Map(historico.vendasFiado.map((v) => [v.id, v]))}
+            />
           </Stack>
         )}
       </Modal>

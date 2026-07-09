@@ -142,6 +142,7 @@ export interface Lancamento {
   saldoApos: string;
   descricao: string | null;
   data: string;
+  vendaId: string | null;
 }
 
 export interface VendaFiado {
