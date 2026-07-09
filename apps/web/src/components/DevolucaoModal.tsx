@@ -82,12 +82,7 @@ export function DevolucaoModal({ venda, aberto, aoFechar }: Props) {
 
   const opcoesDestino = [
     { value: "DINHEIRO", label: "Devolver em dinheiro" },
-    ...(temCliente
-      ? [
-          { value: "HAVER", label: "Virar crédito na conta do cliente" },
-          { value: "ABATER_FIADO", label: "Abater do fiado do cliente" },
-        ]
-      : []),
+    ...(temCliente ? [{ value: "ABATER_FIADO", label: "Lançar na conta do cliente" }] : []),
   ];
 
   return (
@@ -143,6 +138,11 @@ export function DevolucaoModal({ venda, aberto, aoFechar }: Props) {
 
         <Select
           label="O que fazer com o valor devolvido?"
+          description={
+            destino === "ABATER_FIADO"
+              ? "Abate o que o cliente deve. Se a devolução for maior que a dívida, a diferença vira crédito a favor dele."
+              : undefined
+          }
           data={opcoesDestino}
           value={destino}
           onChange={(v) => setDestino(v ?? "DINHEIRO")}
