@@ -154,20 +154,27 @@ function envelopeA4(corpo: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Demonstrativo da conta</title><style>
     @page { size: A4 portrait; margin: 16mm; }
     * { box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #000; margin: 0; }
-    h1 { font-size: 20px; margin: 0; }
-    .sub { color: #555; }
-    .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 8px; }
-    .titulo { text-align: center; font-size: 15px; font-weight: bold; margin: 16px 0; text-transform: uppercase; letter-spacing: 1px; }
-    .info { margin: 4px 0; }
-    .info b { display: inline-block; min-width: 100px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
-    th { background: #f0f0f0; }
-    .r { text-align: right; }
-    .venda-cab { margin-top: 14px; font-weight: bold; }
-    .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 14px; border-top: 2px solid #333; padding-top: 8px; }
-    .rodape { margin-top: 28px; text-align: center; color: #777; font-size: 11px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #222; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cab { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #b5451f; padding-bottom: 10px; }
+    .cab h1 { font-size: 22px; margin: 0; color: #b5451f; letter-spacing: .5px; }
+    .cab .sub { color: #888; font-size: 12px; }
+    .cab .emit { color: #888; font-size: 11px; text-align: right; }
+    .titulo { text-align: center; font-size: 13px; font-weight: bold; letter-spacing: 3px; margin: 20px 0 12px; color: #444; }
+    .cliente { font-size: 13px; margin-bottom: 4px; }
+    .cliente b { color: #666; margin-right: 6px; }
+    .secao { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #b5451f; margin: 22px 0 6px; }
+    table.lista { width: 100%; border-collapse: collapse; }
+    table.lista th, table.lista td { border: 1px solid #e2e2e2; padding: 6px 9px; text-align: left; }
+    table.lista th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #666; font-weight: bold; }
+    table.lista td.r, table.lista th.r { text-align: right; font-variant-numeric: tabular-nums; }
+    table.lista tr.grupo td { background: #faf5f2; font-weight: bold; color: #333; }
+    table.lista tfoot td { background: #f5f5f5; font-weight: bold; }
+    .saldo-box { display: flex; justify-content: space-between; align-items: center; width: 300px; margin: 24px 0 0 auto; padding: 12px 18px; background: #f8f0eb; border: 1px solid #e6ccbe; border-left: 5px solid #b5451f; }
+    .saldo-box .lbl { font-weight: bold; color: #444; letter-spacing: .5px; }
+    .saldo-box .val { font-size: 19px; font-weight: bold; color: #b5451f; font-variant-numeric: tabular-nums; }
+    .haver-box { display: flex; justify-content: space-between; align-items: center; width: 300px; margin: 8px 0 0 auto; padding: 9px 18px; background: #eef7f0; border-left: 5px solid #2f9e44; color: #2b8a3e; font-weight: bold; }
+    .haver-box .val { font-variant-numeric: tabular-nums; }
+    .rodape { margin-top: 32px; text-align: center; color: #aaa; font-size: 11px; letter-spacing: .5px; }
   </style></head><body>${corpo}</body></html>`;
 }
 
@@ -178,7 +185,7 @@ export function reciboContaA4(conta: ContaCliente): string {
     ? d.compras
         .map(
           (v) => `
-        <tr><td colspan="4" style="background:#f2f2f2;font-weight:bold">Venda nº ${v.numero} — ${formatarData(v.dataVenda)}</td></tr>
+        <tr class="grupo"><td colspan="4">Venda nº ${v.numero} — ${formatarData(v.dataVenda)}</td></tr>
         ${v.itens
           .map(
             (it) =>
@@ -187,7 +194,7 @@ export function reciboContaA4(conta: ContaCliente): string {
           .join("")}`
         )
         .join("")
-    : `<tr><td colspan="4">Nenhuma compra no período.</td></tr>`;
+    : `<tr><td colspan="4" style="color:#888">Nenhuma compra no período.</td></tr>`;
 
   const linhasPagamentos = d.pagamentos.length
     ? d.pagamentos
@@ -196,37 +203,40 @@ export function reciboContaA4(conta: ContaCliente): string {
             `<tr><td>${formatarData(p.data)}</td><td>${esc(p.descricao ?? "Pagamento")}</td><td class="r">${formatarMoeda(p.valor)}</td></tr>`
         )
         .join("")
-    : `<tr><td colspan="3">Nenhum pagamento no período.</td></tr>`;
+    : `<tr><td colspan="3" style="color:#888">Nenhum pagamento no período.</td></tr>`;
 
   return envelopeA4(`
     <div class="cab">
       <div><h1>${LOJA.nome}</h1><div class="sub">${LOJA.sub}</div></div>
-      <div class="sub">Emitido em ${formatarDataHora(new Date().toISOString())}</div>
+      <div class="emit">Emitido em<br>${formatarDataHora(new Date().toISOString())}</div>
     </div>
-    <div class="titulo">Demonstrativo da Conta</div>
-    <div class="info"><b>Cliente:</b> ${esc(conta.cliente.nome)}</div>
+    <div class="titulo">DEMONSTRATIVO DA CONTA</div>
+    <div class="cliente"><b>Cliente:</b> ${esc(conta.cliente.nome)}</div>
 
-    <div class="venda-cab">Compras no período</div>
-    <table>
+    <div class="secao">Compras no período</div>
+    <table class="lista">
       <thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Unit.</th><th class="r">Total</th></tr></thead>
       <tbody>${linhasCompras}</tbody>
+      <tfoot><tr><td colspan="3">Total comprado</td><td class="r">${formatarMoeda(d.totalComprado)}</td></tr></tfoot>
     </table>
-    <div style="text-align:right;font-weight:bold;margin-top:4px">Total comprado: ${formatarMoeda(d.totalComprado)}</div>
 
-    <div class="venda-cab">Pagamentos no período</div>
-    <table>
+    <div class="secao">Pagamentos no período</div>
+    <table class="lista">
       <thead><tr><th>Data</th><th>Movimento</th><th class="r">Valor</th></tr></thead>
       <tbody>${linhasPagamentos}</tbody>
+      <tfoot><tr><td colspan="2">Total pago</td><td class="r">${formatarMoeda(d.totalPago)}</td></tr></tfoot>
     </table>
-    <div style="text-align:right;font-weight:bold;margin-top:4px">Total pago: ${formatarMoeda(d.totalPago)}</div>
 
-    <div class="total">
-      <div style="font-weight:normal">Total comprado: ${formatarMoeda(d.totalComprado)}</div>
-      <div style="font-weight:normal">Total pago: − ${formatarMoeda(d.totalPago)}</div>
-      <div style="font-size:18px">SALDO DEVEDOR: ${formatarMoeda(d.deve)}</div>
-      ${d.haver > 0 ? `<div style="font-weight:normal">Crédito a favor: ${formatarMoeda(d.haver)}</div>` : ""}
+    <div class="saldo-box">
+      <span class="lbl">SALDO DEVEDOR</span>
+      <span class="val">${formatarMoeda(d.deve)}</span>
     </div>
-    <div class="rodape">*** Documento sem valor fiscal ***</div>
+    ${
+      d.haver > 0
+        ? `<div class="haver-box"><span>Crédito a favor (haver)</span><span class="val">${formatarMoeda(d.haver)}</span></div>`
+        : ""
+    }
+    <div class="rodape">Documento sem valor fiscal</div>
   `);
 }
 
