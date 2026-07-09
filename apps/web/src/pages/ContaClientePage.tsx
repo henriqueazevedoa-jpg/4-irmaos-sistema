@@ -18,15 +18,24 @@ import {
   Select,
   Textarea,
   Accordion,
+  Menu,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { IconArrowLeft, IconCash, IconGift, IconPrinter, IconHistory, IconCircleCheck } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconCash,
+  IconGift,
+  IconPrinter,
+  IconHistory,
+  IconCircleCheck,
+  IconChevronDown,
+} from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
 import { imprimirHtml } from "../lib/imprimir";
-import { reciboConta, reciboQuitacao } from "../lib/recibos";
+import { reciboConta, reciboContaA4, reciboQuitacao } from "../lib/recibos";
 import type { ContaCliente, VendaFiado, HistoricoConta, Lancamento } from "../lib/tipos";
 
 function statusFiado(v: VendaFiado) {
@@ -216,13 +225,23 @@ export function ContaClientePage() {
           </Button>
         )}
         {deve > 0 && (
-          <Button
-            variant="default"
-            leftSection={<IconPrinter size={18} />}
-            onClick={() => imprimirHtml(reciboConta(data))}
-          >
-            Imprimir conta
-          </Button>
+          <Menu shadow="md" position="bottom-start">
+            <Menu.Target>
+              <Button
+                variant="default"
+                leftSection={<IconPrinter size={18} />}
+                rightSection={<IconChevronDown size={14} />}
+              >
+                Imprimir conta
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={() => imprimirHtml(reciboConta(data))}>
+                Bobina térmica (80mm)
+              </Menu.Item>
+              <Menu.Item onClick={() => imprimirHtml(reciboContaA4(data))}>Folha A4</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         )}
         {deve <= 0 && (
           <Button

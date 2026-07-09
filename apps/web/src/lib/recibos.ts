@@ -121,6 +121,66 @@ export function reciboConta(conta: ContaCliente): string {
   `);
 }
 
+// ───────────────── Demonstrativo da CONTA em FOLHA A4 ───────────────
+function envelopeA4(corpo: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Demonstrativo da conta</title><style>
+    @page { size: A4 portrait; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #000; margin: 0; }
+    h1 { font-size: 20px; margin: 0; }
+    .sub { color: #555; }
+    .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    .titulo { text-align: center; font-size: 15px; font-weight: bold; margin: 16px 0; text-transform: uppercase; letter-spacing: 1px; }
+    .info { margin: 4px 0; }
+    .info b { display: inline-block; min-width: 100px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+    th { background: #f0f0f0; }
+    .r { text-align: right; }
+    .venda-cab { margin-top: 14px; font-weight: bold; }
+    .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 14px; border-top: 2px solid #333; padding-top: 8px; }
+    .rodape { margin-top: 28px; text-align: center; color: #777; font-size: 11px; }
+  </style></head><body>${corpo}</body></html>`;
+}
+
+export function reciboContaA4(conta: ContaCliente): string {
+  const deve = Number(conta.cliente.saldoConta);
+  const haver = Number(conta.cliente.saldoHaver);
+  const abertas = conta.vendasFiado.filter((v) => Number(v.valorFiadoAberto) > 0.001);
+
+  const secoes = abertas
+    .map(
+      (v) => `
+      <div class="venda-cab">Venda nº ${v.numero} — ${formatarData(v.dataVenda)} (em aberto: ${formatarMoeda(v.valorFiadoAberto)})</div>
+      <table>
+        <thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Unit.</th><th class="r">Total</th></tr></thead>
+        <tbody>
+          ${v.itens
+            .map(
+              (it) =>
+                `<tr><td>${esc(it.descricao)}</td><td class="r">${formatarNumero(it.quantidade)}</td><td class="r">${formatarMoeda(it.precoUnitario)}</td><td class="r">${formatarMoeda(it.total)}</td></tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>`
+    )
+    .join("");
+
+  return envelopeA4(`
+    <div class="cab">
+      <div><h1>${LOJA.nome}</h1><div class="sub">${LOJA.sub}</div></div>
+      <div class="sub">Emitido em ${formatarDataHora(new Date().toISOString())}</div>
+    </div>
+    <div class="titulo">Demonstrativo da Conta</div>
+    <div class="info"><b>Cliente:</b> ${esc(conta.cliente.nome)}</div>
+    ${haver > 0 ? `<div class="info"><b>Crédito a favor:</b> ${formatarMoeda(haver)}</div>` : ""}
+    <div style="margin-top:12px"><b>Compras em aberto:</b></div>
+    ${abertas.length ? secoes : "<div>Nenhuma compra em aberto — conta quitada.</div>"}
+    <div class="total">TOTAL A PAGAR: ${formatarMoeda(deve)}</div>
+    <div class="rodape">*** Documento sem valor fiscal ***</div>
+  `);
+}
+
 // ─────────────────────── Comprovante de QUITAÇÃO ────────────────────
 export function reciboQuitacao(conta: ContaCliente): string {
   return envelope(`
