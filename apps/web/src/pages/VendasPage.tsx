@@ -12,6 +12,7 @@ import {
   Center,
   Loader,
   ActionIcon,
+  Tooltip,
   TextInput,
   Pagination,
   Modal,
@@ -24,11 +25,14 @@ import {
   IconEye,
   IconBan,
   IconArrowBackUp,
+  IconPrinter,
 } from "@tabler/icons-react";
 import { api, query } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
-import { formatarMoeda, formatarData } from "../lib/formato";
+import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { LABEL_FORMA } from "../lib/pagamento";
+import { imprimirHtml } from "../lib/imprimir";
+import { reciboVenda } from "../lib/recibos";
 import { DevolucaoModal } from "../components/DevolucaoModal";
 import type { VendaResumo, VendaDetalhe, RespostaLista } from "../lib/tipos";
 
@@ -69,6 +73,13 @@ export function VendasPage() {
     queryKey: ["vendas", detalheId],
     queryFn: () => api.get<VendaDetalhe>(`/vendas/${detalheId}`),
     enabled: !!detalheId,
+  });
+
+  // Busca a venda completa e manda a nota para impressão (bobina 80mm).
+  const imprimirNota = useMutation({
+    mutationFn: (id: string) => api.get<VendaDetalhe>(`/vendas/${id}`),
+    onSuccess: (v) => imprimirHtml(reciboVenda(v)),
+    onError: (e) => notificarErro(e),
   });
 
   const cancelar = useMutation({
@@ -162,6 +173,17 @@ export function VendasPage() {
                       <ActionIcon variant="subtle" onClick={() => setDetalheId(v.id)} aria-label="Ver">
                         <IconEye size={18} />
                       </ActionIcon>
+                      <Tooltip label="Imprimir nota">
+                        <ActionIcon
+                          variant="subtle"
+                          color="gray"
+                          loading={imprimirNota.isPending && imprimirNota.variables === v.id}
+                          onClick={() => imprimirNota.mutate(v.id)}
+                          aria-label="Imprimir nota"
+                        >
+                          <IconPrinter size={18} />
+                        </ActionIcon>
+                      </Tooltip>
                       {v.status !== "CANCELADA" && (
                         <ActionIcon
                           variant="subtle"
@@ -219,14 +241,24 @@ export function VendasPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {detalhe.itens.map((it) => (
-                  <Table.Tr key={it.id}>
-                    <Table.Td>{it.descricao}</Table.Td>
-                    <Table.Td>{Number(it.quantidade)}</Table.Td>
-                    <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
-                    <Table.Td>{formatarMoeda(it.total)}</Table.Td>
-                  </Table.Tr>
-                ))}
+                {detalhe.itens.map((it) => {
+                  const devolvida = Number(it.quantidadeDevolvida);
+                  return (
+                    <Table.Tr key={it.id}>
+                      <Table.Td>
+                        <Text size="sm">{it.descricao}</Text>
+                        {devolvida > 0 && (
+                          <Badge color="grape" variant="light" size="sm" mt={2}>
+                            Devolvido: {formatarNumero(it.quantidadeDevolvida)}
+                          </Badge>
+                        )}
+                      </Table.Td>
+                      <Table.Td>{formatarNumero(it.quantidade)}</Table.Td>
+                      <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
+                      <Table.Td>{formatarMoeda(it.total)}</Table.Td>
+                    </Table.Tr>
+                  );
+                })}
               </Table.Tbody>
             </Table>
             <Divider label="Pagamento" />
@@ -264,16 +296,26 @@ export function VendasPage() {
               </>
             )}
 
-            {detalhe.status === "FINALIZADA" && podeDevolver(detalhe) && (
+            <Group>
               <Button
-                color="orange"
                 variant="light"
-                leftSection={<IconArrowBackUp size={18} />}
-                onClick={() => setDevolucaoAberta(true)}
+                color="gray"
+                leftSection={<IconPrinter size={18} />}
+                onClick={() => imprimirHtml(reciboVenda(detalhe))}
               >
-                Devolver itens
+                Imprimir nota
               </Button>
-            )}
+              {detalhe.status === "FINALIZADA" && podeDevolver(detalhe) && (
+                <Button
+                  color="orange"
+                  variant="light"
+                  leftSection={<IconArrowBackUp size={18} />}
+                  onClick={() => setDevolucaoAberta(true)}
+                >
+                  Devolver itens
+                </Button>
+              )}
+            </Group>
           </Stack>
         )}
       </Modal>

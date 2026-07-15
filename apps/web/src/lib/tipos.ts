@@ -161,7 +161,13 @@ export interface VendaFiado {
   total: string;
   valorFiado: string;
   valorFiadoAberto: string;
-  itens: { descricao: string; quantidade: string; precoUnitario: string; total: string }[];
+  itens: {
+    descricao: string;
+    quantidade: string;
+    quantidadeDevolvida: string;
+    precoUnitario: string;
+    total: string;
+  }[];
 }
 
 export interface ContaCliente {

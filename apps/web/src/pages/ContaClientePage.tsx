@@ -37,7 +37,7 @@ import { notificarErro, notificarSucesso } from "../lib/notificacoes";
 import { formatarMoeda, formatarData, formatarNumero } from "../lib/formato";
 import { FORMAS_RECEBIMENTO } from "../lib/pagamento";
 import { imprimirHtml } from "../lib/imprimir";
-import { reciboConta, reciboContaA4, reciboQuitacao } from "../lib/recibos";
+import { reciboConta, reciboContaA4, reciboQuitacao, reciboVenda } from "../lib/recibos";
 import { DevolucaoModal } from "../components/DevolucaoModal";
 import type { ContaCliente, VendaFiado, HistoricoConta, Lancamento, VendaDetalhe } from "../lib/tipos";
 
@@ -63,10 +63,12 @@ function TabelaExtrato({
   lancamentos,
   itensPorVenda,
   onDevolver,
+  onImprimir,
 }: {
   lancamentos: Lancamento[];
   itensPorVenda?: Map<string, VendaFiado>;
   onDevolver?: (vendaId: string) => void;
+  onImprimir?: (vendaId: string) => void;
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   if (lancamentos.length === 0) return <Text c="dimmed">Nenhuma movimentação.</Text>;
@@ -138,27 +140,50 @@ function TabelaExtrato({
                     <Table.Td colSpan={4} style={{ background: "var(--mantine-color-gray-0)" }}>
                       <Table>
                         <Table.Tbody>
-                          {compra.itens.map((it, i) => (
-                            <Table.Tr key={i}>
-                              <Table.Td>{it.descricao}</Table.Td>
-                              <Table.Td>{formatarNumero(it.quantidade)}</Table.Td>
-                              <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
-                              <Table.Td ta="right">{formatarMoeda(it.total)}</Table.Td>
-                            </Table.Tr>
-                          ))}
+                          {compra.itens.map((it, i) => {
+                            const devolvida = Number(it.quantidadeDevolvida);
+                            return (
+                              <Table.Tr key={i}>
+                                <Table.Td>
+                                  {it.descricao}
+                                  {devolvida > 0 && (
+                                    <Badge color="grape" variant="light" size="sm" ml={6}>
+                                      Devolvido: {formatarNumero(it.quantidadeDevolvida)}
+                                    </Badge>
+                                  )}
+                                </Table.Td>
+                                <Table.Td>{formatarNumero(it.quantidade)}</Table.Td>
+                                <Table.Td>{formatarMoeda(it.precoUnitario)}</Table.Td>
+                                <Table.Td ta="right">{formatarMoeda(it.total)}</Table.Td>
+                              </Table.Tr>
+                            );
+                          })}
                         </Table.Tbody>
                       </Table>
-                      {onDevolver && l.vendaId && (
-                        <Group justify="flex-end" mt="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color="orange"
-                            leftSection={<IconArrowBackUp size={16} />}
-                            onClick={() => onDevolver(l.vendaId!)}
-                          >
-                            Devolver itens desta compra
-                          </Button>
+                      {l.vendaId && (onImprimir || onDevolver) && (
+                        <Group justify="flex-end" mt="xs" gap="xs">
+                          {onImprimir && (
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="gray"
+                              leftSection={<IconPrinter size={16} />}
+                              onClick={() => onImprimir(l.vendaId!)}
+                            >
+                              Imprimir nota
+                            </Button>
+                          )}
+                          {onDevolver && (
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="orange"
+                              leftSection={<IconArrowBackUp size={16} />}
+                              onClick={() => onDevolver(l.vendaId!)}
+                            >
+                              Devolver itens desta compra
+                            </Button>
+                          )}
                         </Group>
                       )}
                     </Table.Td>
@@ -217,6 +242,13 @@ export function ContaClientePage() {
       setValor(0);
       setObservacao("");
     },
+    onError: (e) => notificarErro(e),
+  });
+
+  // Busca a venda completa e imprime a nota individual (bobina 80mm).
+  const imprimirNota = useMutation({
+    mutationFn: (vendaId: string) => api.get<VendaDetalhe>(`/vendas/${vendaId}`),
+    onSuccess: (v) => imprimirHtml(reciboVenda(v)),
     onError: (e) => notificarErro(e),
   });
 
@@ -365,6 +397,7 @@ export function ContaClientePage() {
         lancamentos={data.lancamentos}
         itensPorVenda={itensPorVenda}
         onDevolver={setVendaDevolver}
+        onImprimir={(vendaId) => imprimirNota.mutate(vendaId)}
       />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title="Registrar pagamento">

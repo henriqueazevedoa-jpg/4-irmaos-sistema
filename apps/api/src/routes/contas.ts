@@ -27,7 +27,15 @@ export async function rotasContas(app: FastifyInstance) {
     total: true,
     valorFiado: true,
     valorFiadoAberto: true,
-    itens: { select: { descricao: true, quantidade: true, precoUnitario: true, total: true } },
+    itens: {
+      select: {
+        descricao: true,
+        quantidade: true,
+        quantidadeDevolvida: true,
+        precoUnitario: true,
+        total: true,
+      },
+    },
   } as const;
 
   // ── Conta do cliente (CICLO ATUAL): só o que está em aberto desde a última quitação ──
