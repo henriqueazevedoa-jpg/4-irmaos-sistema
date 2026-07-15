@@ -55,9 +55,11 @@ export function reciboVenda(v: VendaDetalhe): string {
     .map((it) => {
       const q = Number(it.quantidade);
       const unit = q > 0 ? Number(it.total) / q : 0;
+      const dev = Number(it.quantidadeDevolvida);
       return `
         <div>${esc(it.descricao)}</div>
-        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(unit)}</span>`, formatarMoeda(it.total))}`;
+        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(unit)}</span>`, formatarMoeda(it.total))}
+        ${dev > 0 ? `<div class="sm">&gt;&gt; devolvido: ${formatarNumero(it.quantidadeDevolvida)}</div>` : ""}`;
     })
     .join("");
 
@@ -66,6 +68,26 @@ export function reciboVenda(v: VendaDetalhe): string {
     .join("");
 
   const desconto = Number(v.desconto) > 0 ? linha("Desconto", "- " + formatarMoeda(v.desconto)) : "";
+
+  // Seção de devoluções (aparece quando a venda já teve itens devolvidos).
+  const totalDevolvido = v.devolucoes.reduce((s, d) => s + Number(d.valorTotal), 0);
+  const secDevolucoes = v.devolucoes.length
+    ? `<hr><div class="b">Devoluções:</div>` +
+      v.devolucoes
+        .map(
+          (d) =>
+            linha(
+              `<span class="sm">${formatarData(d.data)} · ${esc(LABEL_DESTINO[d.destino])}</span>`,
+              `- ${formatarMoeda(d.valorTotal)}`
+            ) +
+            d.itens
+              .map((i) => `<div class="sm">&nbsp;&nbsp;${formatarNumero(i.quantidade)}x ${esc(i.descricao)}</div>`)
+              .join("")
+        )
+        .join("") +
+      linha("Total devolvido", "- " + formatarMoeda(totalDevolvido), "b") +
+      linha("Total líquido", formatarMoeda(Number(v.total) - totalDevolvido), "b lg")
+    : "";
 
   return envelope(`
     ${cabecalho("RECIBO DE VENDA")}
@@ -81,6 +103,7 @@ export function reciboVenda(v: VendaDetalhe): string {
     <hr>
     <div class="b">Pagamento:</div>
     ${pagamentos}
+    ${secDevolucoes}
     <hr>
     <div class="c sm mt">*** Documento sem valor fiscal ***</div>
     <div class="c sm">${LOJA.rodape}</div>
