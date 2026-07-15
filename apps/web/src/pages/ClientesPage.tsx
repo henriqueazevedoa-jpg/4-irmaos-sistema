@@ -141,6 +141,7 @@ export function ClientesPage() {
         onEditar={abrirEdicao}
         onRemover={(c) => remover.mutate(c.id)}
         descricaoRemover={(c) => c.nome}
+        onRowClick={(c) => navegar(`/clientes/${c.id}/conta`)}
         acoesExtras={(c) => (
           <Tooltip label="Conta / fiado">
             <ActionIcon

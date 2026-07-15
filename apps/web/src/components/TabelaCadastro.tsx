@@ -28,6 +28,7 @@ interface Props<T extends { id: string; ativo?: boolean }> {
   onRemover: (item: T) => void;
   descricaoRemover: (item: T) => string;
   acoesExtras?: (item: T) => ReactNode;
+  onRowClick?: (item: T) => void;
 }
 
 export function TabelaCadastro<T extends { id: string; ativo?: boolean }>(props: Props<T>) {
@@ -41,6 +42,7 @@ export function TabelaCadastro<T extends { id: string; ativo?: boolean }>(props:
     onRemover,
     descricaoRemover,
     acoesExtras,
+    onRowClick,
   } = props;
 
   function confirmarRemocao(item: T) {
@@ -88,11 +90,17 @@ export function TabelaCadastro<T extends { id: string; ativo?: boolean }>(props:
           </Table.Thead>
           <Table.Tbody>
             {dados?.map((item) => (
-              <Table.Tr key={item.id} opacity={item.ativo === false ? 0.5 : 1}>
+              <Table.Tr
+                key={item.id}
+                opacity={item.ativo === false ? 0.5 : 1}
+                onClick={onRowClick ? () => onRowClick(item) : undefined}
+                style={onRowClick ? { cursor: "pointer" } : undefined}
+              >
                 {colunas.map((c) => (
                   <Table.Td key={c.cabecalho}>{c.render(item)}</Table.Td>
                 ))}
-                <Table.Td>
+                {/* Não propaga o clique dos botões para a linha */}
+                <Table.Td onClick={(e) => e.stopPropagation()}>
                   <Group gap={4} wrap="nowrap">
                     {acoesExtras?.(item)}
                     <ActionIcon
