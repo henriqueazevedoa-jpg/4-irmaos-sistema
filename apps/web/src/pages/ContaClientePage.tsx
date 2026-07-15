@@ -17,6 +17,7 @@ import {
   NumberInput,
   Select,
   Textarea,
+  TextInput,
   ActionIcon,
   Menu,
 } from "@mantine/core";
@@ -31,6 +32,8 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconArrowBackUp,
+  IconSearch,
+  IconFilterOff,
 } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { notificarErro, notificarSucesso } from "../lib/notificacoes";
@@ -59,6 +62,23 @@ function rotuloLancamento(l: Lancamento): { label: string; cor: string } {
   return { label: "Pagamento", cor: "teal" };
 }
 
+// Remove o "venda nº N" da descrição (agora o número tem coluna própria).
+function limparDescricao(desc: string | null): string {
+  if (!desc) return "";
+  return desc
+    .replace(/\s*(—|-|\bda)?\s*venda nº\s*\d+/i, "")
+    .replace(/\s*[—-]\s*$/, "")
+    .trim();
+}
+
+// Dia (YYYY-MM-DD) no fuso local, para comparar com os filtros de data.
+function diaLocal(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
 function TabelaExtrato({
   lancamentos,
   itensPorVenda,
@@ -81,11 +101,12 @@ function TabelaExtrato({
     });
 
   return (
-    <Table.ScrollContainer minWidth={520}>
+    <Table.ScrollContainer minWidth={620}>
       <Table striped verticalSpacing="sm">
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Data</Table.Th>
+            <Table.Th>Venda nº</Table.Th>
             <Table.Th>Movimento</Table.Th>
             <Table.Th>Valor</Table.Th>
             <Table.Th>Saldo</Table.Th>
@@ -95,12 +116,17 @@ function TabelaExtrato({
           {lancamentos.map((l) => {
             const compra =
               l.tipo === "DEBITO" && l.vendaId ? itensPorVenda?.get(l.vendaId) : undefined;
+            const numeroVenda = l.vendaId ? itensPorVenda?.get(l.vendaId)?.numero : undefined;
             const aberto = abertos.has(l.id);
             const mov = rotuloLancamento(l);
+            const descricao = limparDescricao(l.descricao);
             return (
               <Fragment key={l.id}>
                 <Table.Tr>
                   <Table.Td>{formatarData(l.data)}</Table.Td>
+                  <Table.Td>
+                    {numeroVenda ? <Text fw={500}>{numeroVenda}</Text> : <Text c="dimmed">—</Text>}
+                  </Table.Td>
                   <Table.Td>
                     <Group gap={6} wrap="nowrap" align="flex-start">
                       {compra ? (
@@ -120,9 +146,9 @@ function TabelaExtrato({
                         <Badge color={mov.cor} variant="light">
                           {mov.label}
                         </Badge>
-                        {l.descricao && (
+                        {descricao && (
                           <Text size="xs" c="dimmed">
-                            {l.descricao}
+                            {descricao}
                           </Text>
                         )}
                       </div>
@@ -137,7 +163,7 @@ function TabelaExtrato({
                 </Table.Tr>
                 {compra && aberto && (
                   <Table.Tr>
-                    <Table.Td colSpan={4} style={{ background: "var(--mantine-color-gray-0)" }}>
+                    <Table.Td colSpan={5} style={{ background: "var(--mantine-color-gray-0)" }}>
                       <Table>
                         <Table.Tbody>
                           {compra.itens.map((it, i) => {
@@ -210,6 +236,11 @@ export function ContaClientePage() {
   const [histAberto, setHistAberto] = useState(false);
   const [vendaDevolver, setVendaDevolver] = useState<string | null>(null);
 
+  // Filtros do extrato
+  const [buscaVenda, setBuscaVenda] = useState("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+
   const { data, isLoading } = useQuery({
     queryKey: ["conta", id],
     queryFn: () => api.get<ContaCliente>(`/clientes/${id}/conta`),
@@ -273,6 +304,25 @@ export function ContaClientePage() {
   const haver = Number(data.cliente.saldoHaver);
   // Mapa vendaId -> compra (com itens), para expandir as compras no extrato
   const itensPorVenda = new Map(data.comprasCiclo.map((v) => [v.id, v]));
+
+  // Aplica os filtros (nº da venda e período) ao extrato do ciclo.
+  const temFiltro = !!(buscaVenda.trim() || dataInicio || dataFim);
+  const lancamentosFiltrados = data.lancamentos.filter((l) => {
+    if (buscaVenda.trim()) {
+      const numero = l.vendaId ? itensPorVenda.get(l.vendaId)?.numero : undefined;
+      if (!numero || !String(numero).includes(buscaVenda.trim())) return false;
+    }
+    const dia = diaLocal(l.data);
+    if (dataInicio && dia < dataInicio) return false;
+    if (dataFim && dia > dataFim) return false;
+    return true;
+  });
+
+  function limparFiltros() {
+    setBuscaVenda("");
+    setDataInicio("");
+    setDataFim("");
+  }
 
   function confirmarUsarHaver() {
     modals.openConfirmModal({
@@ -393,8 +443,48 @@ export function ContaClientePage() {
 
       {/* Extrato do ciclo atual — clique na seta de uma compra para ver os itens */}
       <Title order={4}>Movimentações da conta (desde a última quitação)</Title>
+
+      <Group align="flex-end" gap="sm" wrap="wrap">
+        <TextInput
+          label="Buscar por nº da venda"
+          placeholder="Ex: 20"
+          leftSection={<IconSearch size={16} />}
+          value={buscaVenda}
+          onChange={(e) => setBuscaVenda(e.currentTarget.value)}
+          w={{ base: "100%", sm: 200 }}
+        />
+        <TextInput
+          type="date"
+          label="De"
+          value={dataInicio}
+          onChange={(e) => setDataInicio(e.currentTarget.value)}
+        />
+        <TextInput
+          type="date"
+          label="Até"
+          value={dataFim}
+          onChange={(e) => setDataFim(e.currentTarget.value)}
+        />
+        {temFiltro && (
+          <Button
+            variant="subtle"
+            color="gray"
+            leftSection={<IconFilterOff size={16} />}
+            onClick={limparFiltros}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </Group>
+
+      {temFiltro && (
+        <Text size="sm" c="dimmed">
+          {lancamentosFiltrados.length} movimentação(ões) encontrada(s).
+        </Text>
+      )}
+
       <TabelaExtrato
-        lancamentos={data.lancamentos}
+        lancamentos={lancamentosFiltrados}
         itensPorVenda={itensPorVenda}
         onDevolver={setVendaDevolver}
         onImprimir={(vendaId) => imprimirNota.mutate(vendaId)}
