@@ -24,6 +24,21 @@ function linha(esquerda: string, direita: string, classe = ""): string {
   return `<div class="row ${classe}"><span>${esquerda}</span><span>${direita}</span></div>`;
 }
 
+// Agrupa itens iguais (mesma descrição) somando quantidade e valor. Evita listar
+// um a um — ex.: 20 parafusos devolvidos viram uma linha "20x Parafuso".
+function agruparPorDescricao(
+  itens: { descricao: string; quantidade: string; valorTotal: string }[]
+): { descricao: string; quantidade: number; valorTotal: number }[] {
+  const mapa = new Map<string, { descricao: string; quantidade: number; valorTotal: number }>();
+  for (const i of itens) {
+    const atual = mapa.get(i.descricao) ?? { descricao: i.descricao, quantidade: 0, valorTotal: 0 };
+    atual.quantidade += Number(i.quantidade);
+    atual.valorTotal += Number(i.valorTotal);
+    mapa.set(i.descricao, atual);
+  }
+  return [...mapa.values()];
+}
+
 // Envolve o conteúdo com a estrutura e o estilo do recibo de 80mm.
 function envelope(corpo: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Recibo</title><style>
@@ -70,19 +85,17 @@ export function reciboVenda(v: VendaDetalhe): string {
   const desconto = Number(v.desconto) > 0 ? linha("Desconto", "- " + formatarMoeda(v.desconto)) : "";
 
   // Seção de devoluções (aparece quando a venda já teve itens devolvidos).
+  // Itens iguais são agrupados (somando quantidade e valor) para a lista não crescer.
   const totalDevolvido = v.devolucoes.reduce((s, d) => s + Number(d.valorTotal), 0);
+  const itensDevolvidos = agruparPorDescricao(v.devolucoes.flatMap((d) => d.itens));
   const secDevolucoes = v.devolucoes.length
     ? `<hr><div class="b">Devoluções:</div>` +
-      v.devolucoes
-        .map(
-          (d) =>
-            linha(
-              `<span class="sm">${formatarData(d.data)} · ${esc(LABEL_DESTINO[d.destino])}</span>`,
-              `- ${formatarMoeda(d.valorTotal)}`
-            ) +
-            d.itens
-              .map((i) => `<div class="sm">&nbsp;&nbsp;${formatarNumero(i.quantidade)}x ${esc(i.descricao)}</div>`)
-              .join("")
+      itensDevolvidos
+        .map((it) =>
+          linha(
+            `<span class="sm">${formatarNumero(it.quantidade)}x ${esc(it.descricao)}</span>`,
+            `<span class="sm">- ${formatarMoeda(it.valorTotal)}</span>`
+          )
         )
         .join("") +
       linha("Total devolvido", "- " + formatarMoeda(totalDevolvido), "b") +
@@ -289,12 +302,13 @@ interface DevolucaoImpressao {
 }
 
 export function reciboDevolucao(v: VendaDetalhe, d: DevolucaoImpressao): string {
-  const itens = d.itens
-    .map(
-      (it) => `
+  const itens = agruparPorDescricao(d.itens)
+    .map((it) => {
+      const unit = it.quantidade > 0 ? it.valorTotal / it.quantidade : 0;
+      return `
         <div>${esc(it.descricao)}</div>
-        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(it.valorUnitario)}</span>`, formatarMoeda(it.valorTotal))}`
-    )
+        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(unit)}</span>`, formatarMoeda(it.valorTotal))}`;
+    })
     .join("");
 
   return envelope(`
