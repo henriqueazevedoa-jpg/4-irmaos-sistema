@@ -47,7 +47,7 @@ const COR_STATUS: Record<string, string> = {
 const LABEL_DESTINO: Record<string, string> = {
   DINHEIRO: "Devolvido em dinheiro",
   HAVER: "Virou crédito do cliente",
-  ABATER_FIADO: "Abateu o fiado do cliente",
+  ABATER_FIADO: "Abateu a conta do cliente",
 };
 
 function podeDevolver(v: VendaDetalhe) {
@@ -87,7 +87,7 @@ export function VendasPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vendas"] });
       qc.invalidateQueries({ queryKey: ["produtos"] });
-      notificarSucesso("Venda cancelada. Estoque e fiado foram estornados.");
+      notificarSucesso("Venda cancelada. Estoque e conta do cliente foram estornados.");
     },
     onError: (e) => notificarErro(e),
   });
@@ -97,8 +97,8 @@ export function VendasPage() {
       title: "Cancelar venda",
       children: (
         <Text size="sm">
-          Cancelar a venda <b>nº {v.numero}</b>? Os produtos voltam ao estoque e, se houver
-          fiado, ele é estornado da conta do cliente.
+          Cancelar a venda <b>nº {v.numero}</b>? Os produtos voltam ao estoque e, se for venda
+          a prazo, o valor é estornado da conta do cliente.
         </Text>
       ),
       labels: { confirm: "Cancelar venda", cancel: "Voltar" },

@@ -181,7 +181,7 @@ export function PDVPage() {
       return;
     }
     if (ehFiado && !clienteId) {
-      notificarErro(new Error("Venda no fiado exige selecionar um cliente."));
+      notificarErro(new Error("Venda a prazo exige selecionar um cliente."));
       return;
     }
     finalizar.mutate({
@@ -387,7 +387,7 @@ export function PDVPage() {
 
               {ehFiado && !clienteId && (
                 <Alert color="orange" variant="light" icon={<IconInfoCircle size={16} />} p="xs">
-                  Selecione um cliente para vender no fiado.
+                  Selecione um cliente para vender a prazo.
                 </Alert>
               )}
 

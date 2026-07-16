@@ -211,13 +211,13 @@ export function RelatoriosPage() {
         </>
       )}
 
-      {/* Contas a receber (fiado) */}
+      {/* Contas a receber (vendas a prazo) */}
       <Card withBorder radius="md" padding="lg">
         <Group mb="sm">
           <ThemeIcon variant="light" color="orange" radius="md">
             <IconCoin size={18} />
           </ThemeIcon>
-          <Title order={4}>Contas a receber (fiado em aberto)</Title>
+          <Title order={4}>Contas a receber</Title>
           {financeiro && (
             <Badge color="orange" variant="light" size="lg">
               {formatarMoeda(financeiro.contasReceber.total)}

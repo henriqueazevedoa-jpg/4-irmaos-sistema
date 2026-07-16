@@ -55,7 +55,7 @@ function statusFiado(v: VendaFiado) {
 // Rótulo e cor de cada linha do extrato, deixando claro o tipo de movimento
 // (compra no fiado, pagamento, devolução ou estorno de cancelamento).
 function rotuloLancamento(l: Lancamento): { label: string; cor: string } {
-  if (l.tipo === "DEBITO") return { label: "Compra (fiado)", cor: "orange" };
+  if (l.tipo === "DEBITO") return { label: "Compra (a prazo)", cor: "orange" };
   const d = (l.descricao ?? "").toLowerCase();
   if (d.includes("devolu")) return { label: "Devolução", cor: "grape" };
   if (d.includes("cancel") || d.includes("estorno")) return { label: "Estorno", cor: "gray" };
@@ -287,7 +287,7 @@ export function ContaClientePage() {
     mutationFn: () => api.post(`/clientes/${id}/usar-haver`, {}),
     onSuccess: () => {
       invalidar();
-      notificarSucesso("Crédito usado para abater o fiado.");
+      notificarSucesso("Crédito usado para abater a conta.");
     },
     onError: (e) => notificarErro(e),
   });
@@ -354,7 +354,7 @@ export function ContaClientePage() {
       <SimpleGrid cols={{ base: 1, sm: 3 }}>
         <Card withBorder radius="md" padding="lg">
           <Text size="sm" c="dimmed">
-            Deve (fiado em aberto)
+            A receber (em aberto)
           </Text>
           <Text fw={700} size="xl" c={deve > 0 ? "orange" : "teal"}>
             {formatarMoeda(deve)}
@@ -541,9 +541,9 @@ export function ContaClientePage() {
           </Center>
         ) : (
           <Stack>
-            <Title order={5}>Todas as compras no fiado</Title>
+            <Title order={5}>Todas as compras a prazo</Title>
             {historico.vendasFiado.length === 0 ? (
-              <Text c="dimmed">Nenhuma compra no fiado.</Text>
+              <Text c="dimmed">Nenhuma compra a prazo.</Text>
             ) : (
               historico.vendasFiado.map((v) => {
                 const st = statusFiado(v);

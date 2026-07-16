@@ -143,7 +143,7 @@ export function ClientesPage() {
         descricaoRemover={(c) => c.nome}
         onRowClick={(c) => navegar(`/clientes/${c.id}/conta`)}
         acoesExtras={(c) => (
-          <Tooltip label="Conta / fiado">
+          <Tooltip label="Conta do cliente">
             <ActionIcon
               variant="subtle"
               color="orange"
@@ -159,7 +159,7 @@ export function ClientesPage() {
           { cabecalho: "CPF/CNPJ", render: (c) => c.cpfCnpj ?? "—" },
           { cabecalho: "Telefone", render: (c) => c.telefone ?? "—" },
           {
-            cabecalho: "Deve (fiado)",
+            cabecalho: "A receber",
             render: (c) =>
               Number(c.saldoConta) > 0 ? (
                 <Badge color="orange" variant="light">
@@ -224,8 +224,8 @@ export function ClientesPage() {
               <TextInput label="Complemento" {...form.getInputProps("complemento")} />
             </SimpleGrid>
             <NumberInput
-              label="Limite de crédito (fiado)"
-              description="Valor máximo que o cliente pode comprar no fiado"
+              label="Limite de crédito"
+              description="Valor máximo que o cliente pode comprar a prazo"
               min={0}
               prefix="R$ "
               decimalScale={2}

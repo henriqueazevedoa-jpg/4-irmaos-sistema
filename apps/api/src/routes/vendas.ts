@@ -122,7 +122,7 @@ export async function rotasVendas(app: FastifyInstance) {
       let cliente = null;
       if (fiado.greaterThan(0)) {
         if (!corpo.clienteId) {
-          throw app.httpErrors.badRequest("Venda no fiado exige um cliente selecionado.");
+          throw app.httpErrors.badRequest("Venda a prazo exige um cliente selecionado.");
         }
         cliente = await tx.cliente.findUniqueOrThrow({ where: { id: corpo.clienteId } });
         const novoSaldo = cliente.saldoConta.plus(fiado);
@@ -203,7 +203,7 @@ export async function rotasVendas(app: FastifyInstance) {
             valor: fiado,
             saldoApos: novoSaldo,
             vendaId: criada.id,
-            descricao: `Compra no fiado — venda nº ${criada.numero}`,
+            descricao: `Compra a prazo — venda nº ${criada.numero}`,
           },
         });
         // Se o cliente já tinha crédito (haver), abate direto da nova compra.
@@ -333,7 +333,7 @@ export async function rotasVendas(app: FastifyInstance) {
       throw app.httpErrors.badRequest("Só é possível devolver itens de uma venda finalizada.");
     }
     if ((corpo.destino === "HAVER" || corpo.destino === "ABATER_FIADO") && !venda.clienteId) {
-      throw app.httpErrors.badRequest("Devolução em crédito ou abatimento de fiado exige uma venda com cliente.");
+      throw app.httpErrors.badRequest("Devolução em crédito ou abatimento na conta exige uma venda com cliente.");
     }
 
     const criada = await prisma.$transaction(async (tx) => {
@@ -420,7 +420,7 @@ export async function rotasVendas(app: FastifyInstance) {
                 valor: abatido,
                 saldoApos: novoSaldo,
                 vendaId: venda.id,
-                descricao: `Devolução (abateu o fiado) — venda nº ${venda.numero}`,
+                descricao: `Devolução (abateu a conta) — venda nº ${venda.numero}`,
               },
             });
           }

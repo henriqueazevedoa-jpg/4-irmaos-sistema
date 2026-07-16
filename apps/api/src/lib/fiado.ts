@@ -55,7 +55,7 @@ export async function aplicarHaverNoFiado(tx: Tx, clienteId: string): Promise<Pr
       tipo: "CREDITO",
       valor: usar,
       saldoApos: novoSaldo,
-      descricao: "Crédito (devolução) aplicado no fiado",
+      descricao: "Crédito (devolução) aplicado na conta",
     },
   });
 

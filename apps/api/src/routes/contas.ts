@@ -158,7 +158,7 @@ export async function rotasContas(app: FastifyInstance) {
         throw app.httpErrors.badRequest("O cliente não tem crédito (haver) para usar.");
       }
       if (cliente.saldoConta.lessThanOrEqualTo(0)) {
-        throw app.httpErrors.badRequest("O cliente não tem fiado em aberto para abater.");
+        throw app.httpErrors.badRequest("O cliente não tem valor em aberto na conta para abater.");
       }
 
       const usar = D.min(cliente.saldoHaver, cliente.saldoConta);
@@ -173,7 +173,7 @@ export async function rotasContas(app: FastifyInstance) {
           tipo: "CREDITO",
           valor: usar,
           saldoApos: novoSaldo,
-          descricao: "Uso de crédito (haver) para abater o fiado",
+          descricao: "Uso de crédito (haver) para abater a conta",
         },
       });
 

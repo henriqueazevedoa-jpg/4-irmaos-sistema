@@ -5,12 +5,12 @@ export const FORMAS_PAGAMENTO: { value: FormaPagamento; label: string }[] = [
   { value: "PIX", label: "PIX" },
   { value: "CARTAO_DEBITO", label: "Cartão de débito" },
   { value: "CARTAO_CREDITO", label: "Cartão de crédito" },
-  { value: "FIADO", label: "Fiado (conta do cliente)" },
+  { value: "FIADO", label: "Venda a prazo" },
   { value: "TRANSFERENCIA", label: "Transferência" },
   { value: "OUTRO", label: "Outro" },
 ];
 
-// Formas usadas para receber pagamento de fiado (sem a própria opção "Fiado").
+// Formas usadas para receber pagamento a prazo (sem a própria opção "Venda a prazo").
 export const FORMAS_RECEBIMENTO = FORMAS_PAGAMENTO.filter((f) => f.value !== "FIADO");
 
 export const LABEL_FORMA = Object.fromEntries(

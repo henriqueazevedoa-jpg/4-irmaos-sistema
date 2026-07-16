@@ -4,15 +4,21 @@ import type { VendaDetalhe, ContaCliente, DestinoDevolucao } from "./tipos";
 
 // Dados da loja no topo do recibo (ajuste aqui o nome/telefone da loja).
 const LOJA = {
-  nome: "LOJA 4 IRMÃOS",
-  sub: "Materiais de Construção",
+  nome: "QUATRO IRMÃOS",
+  sub: "Casa e Construção",
+  // Cabeçalho da notinha térmica (mesmo modelo usado na loja)
+  linhas: ["QUATRO IRMÃOS", "CASA E CONSTRUÇÃO", "CHAVEIRO 24 HRS"],
+  cnpj: "17.752.309/0001-30",
+  endereco: "RUA JOÃO TIBURCIO, 37 - CENTRO",
+  cidade: "-JOANÓPOLIS-",
+  telefones: "(11) 99802-5812  (11) 4539-7540",
   rodape: "Obrigado pela preferência!",
 };
 
 const LABEL_DESTINO: Record<DestinoDevolucao, string> = {
   DINHEIRO: "Dinheiro devolvido",
   HAVER: "Crédito na conta",
-  ABATER_FIADO: "Abateu o fiado",
+  ABATER_FIADO: "Abateu a conta",
 };
 
 // Escapa caracteres para não quebrar o HTML.
@@ -44,44 +50,58 @@ function envelope(corpo: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Recibo</title><style>
     @page { size: 80mm auto; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 80mm; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.35; color: #000; padding: 3mm; }
+    body { width: 80mm; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.3; color: #000; padding: 3mm; }
     .c { text-align: center; }
     .b { font-weight: bold; }
-    .lg { font-size: 15px; }
+    .lg { font-size: 16px; }
     .sm { font-size: 11px; }
     hr { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
     .row { display: flex; justify-content: space-between; gap: 6px; }
     .row > span:last-child { text-align: right; white-space: nowrap; }
     .mt { margin-top: 5px; }
+    .campo .rot { display: inline-block; min-width: 62px; }
+    table.itens { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    table.itens th { border-bottom: 1px solid #000; text-align: left; font-weight: bold; padding: 2px 0; }
+    table.itens td { padding: 1px 0; vertical-align: top; }
+    table.itens .qc { text-align: right; padding-right: 6px; white-space: nowrap; }
+    table.itens .vc { text-align: right; padding-left: 6px; white-space: nowrap; }
   </style></head><body>${corpo}</body></html>`;
 }
 
-function cabecalho(titulo: string): string {
+function cabecalho(titulo?: string): string {
   return `
-    <div class="c b lg">${LOJA.nome}</div>
-    <div class="c sm">${LOJA.sub}</div>
-    <hr>
-    <div class="c b">${titulo}</div>`;
+    <div class="c b lg">${LOJA.linhas[0]}</div>
+    <div class="c b">${LOJA.linhas[1]}</div>
+    <div class="c b">${LOJA.linhas[2]}</div>
+    <div class="c sm">CNPJ: ${LOJA.cnpj}</div>
+    <div class="c sm">${LOJA.endereco}</div>
+    <div class="c sm">${LOJA.cidade}</div>
+    <div class="c sm">${LOJA.telefones}</div>
+    ${titulo ? `<hr><div class="c b">${titulo}</div>` : ""}`;
 }
 
 // ───────────────────────── Recibo de VENDA ─────────────────────────
 export function reciboVenda(v: VendaDetalhe): string {
-  const itens = v.itens
+  const linhasItens = v.itens
     .map((it) => {
       const q = Number(it.quantidade);
       const unit = q > 0 ? Number(it.total) / q : 0;
       const dev = Number(it.quantidadeDevolvida);
       return `
-        <div>${esc(it.descricao)}</div>
-        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(unit)}</span>`, formatarMoeda(it.total))}
-        ${dev > 0 ? `<div class="sm">&gt;&gt; devolvido: ${formatarNumero(it.quantidadeDevolvida)}</div>` : ""}`;
+        <tr>
+          <td class="qc">${formatarNumero(it.quantidade)}</td>
+          <td>${esc(it.descricao)}${
+            dev > 0
+              ? `<div class="sm">&gt;&gt; devolvido: ${formatarNumero(it.quantidadeDevolvida)}</div>`
+              : ""
+          }</td>
+          <td class="vc">${formatarMoeda(unit)}</td>
+          <td class="vc">${formatarMoeda(it.total)}</td>
+        </tr>`;
     })
     .join("");
 
-  const pagamentos = v.pagamentos
-    .map((p) => linha(esc(LABEL_FORMA[p.forma]), formatarMoeda(p.valor)))
-    .join("");
-
+  const formas = [...new Set(v.pagamentos.map((p) => LABEL_FORMA[p.forma]))].join(", ");
   const desconto = Number(v.desconto) > 0 ? linha("Desconto", "- " + formatarMoeda(v.desconto)) : "";
 
   // Seção de devoluções (aparece quando a venda já teve itens devolvidos).
@@ -103,21 +123,27 @@ export function reciboVenda(v: VendaDetalhe): string {
     : "";
 
   return envelope(`
-    ${cabecalho("RECIBO DE VENDA")}
-    ${linha(`Venda nº ${v.numero}`, formatarDataHora(v.dataVenda))}
-    ${v.cliente ? `<div>Cliente: ${esc(v.cliente.nome)}</div>` : ""}
-    ${v.funcionario ? `<div>Vendedor: ${esc(v.funcionario.nome)}</div>` : ""}
+    ${cabecalho()}
     <hr>
-    ${itens}
+    <div class="campo"><span class="rot">Cliente</span>: ${esc(v.cliente?.nome ?? "CONSUMIDOR")}</div>
+    <div class="campo"><span class="rot">CPF</span>:</div>
+    <div class="campo"><span class="rot">Endereço</span>:</div>
+    <div class="sm mt">Venda nº ${v.numero} &middot; ${formatarDataHora(v.dataVenda)}</div>
+    <table class="itens">
+      <thead>
+        <tr><th class="qc">Quant</th><th>Descrição</th><th class="vc">Unit</th><th class="vc">Total</th></tr>
+      </thead>
+      <tbody>${linhasItens}</tbody>
+    </table>
     <hr>
-    ${linha("Subtotal", formatarMoeda(v.subtotal))}
+    ${Number(v.desconto) > 0 ? linha("Subtotal", formatarMoeda(v.subtotal)) : ""}
     ${desconto}
-    ${linha("TOTAL", formatarMoeda(v.total), "b lg")}
-    <hr>
-    <div class="b">Pagamento:</div>
-    ${pagamentos}
+    ${linha("Total a pagar", formatarMoeda(v.total), "b lg")}
+    ${linha("Pagamento", esc(formas))}
+    ${v.funcionario ? `<div>Vendedor: ${esc(v.funcionario.nome)}</div>` : ""}
     ${secDevolucoes}
     <hr>
+    <div class="b lg mt">COMPRADOR:</div>
     <div class="c sm mt">*** Documento sem valor fiscal ***</div>
     <div class="c sm">${LOJA.rodape}</div>
   `);
