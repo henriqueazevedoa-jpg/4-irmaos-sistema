@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Modal,
@@ -45,9 +45,16 @@ export function DevolucaoModal({ venda, aberto, aoFechar }: Props) {
   const qc = useQueryClient();
   const temCliente = !!venda.cliente;
   const [quantidades, setQuantidades] = useState<Record<string, number>>({});
-  const [destino, setDestino] = useState<string>("DINHEIRO");
+  // Padrão: lançar na conta do cliente (mais usado). Sem cliente, só dinheiro.
+  const [destino, setDestino] = useState<string>(temCliente ? "ABATER_FIADO" : "DINHEIRO");
   const [forma, setForma] = useState<string>("DINHEIRO");
   const [observacao, setObservacao] = useState("");
+
+  // Ao abrir (ou trocar de venda), volta ao padrão de destino.
+  useEffect(() => {
+    if (aberto) setDestino(venda.cliente ? "ABATER_FIADO" : "DINHEIRO");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, venda.id]);
 
   const devolver = useMutation({
     mutationFn: () => {
