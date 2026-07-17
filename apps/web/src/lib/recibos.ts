@@ -4,13 +4,10 @@ import type { VendaDetalhe, ContaCliente, DestinoDevolucao } from "./tipos";
 
 // Dados da loja no topo do recibo (ajuste aqui o nome/telefone da loja).
 const LOJA = {
-  nome: "QUATRO IRMÃOS",
+  nome: "LOJA 4 IRMÃOS",
   sub: "Casa e Construção",
-  // Cabeçalho da notinha térmica (mesmo modelo usado na loja)
-  linhas: ["QUATRO IRMÃOS", "CASA E CONSTRUÇÃO", "CHAVEIRO 24 HRS"],
-  cnpj: "17.752.309/0001-30",
-  endereco: "RUA JOÃO TIBURCIO, 37 - CENTRO",
-  cidade: "-JOANÓPOLIS-",
+  // Cabeçalho da notinha térmica
+  linhas: ["LOJA 4 IRMÃOS", "CASA E CONSTRUÇÃO", "CHAVEIRO 24 HRS"],
   telefones: "(11) 99802-5812  (11) 4539-7540",
   rodape: "Obrigado pela preferência!",
 };
@@ -59,12 +56,6 @@ function envelope(corpo: string): string {
     .row { display: flex; justify-content: space-between; gap: 6px; }
     .row > span:last-child { text-align: right; white-space: nowrap; }
     .mt { margin-top: 5px; }
-    .campo .rot { display: inline-block; min-width: 62px; }
-    table.itens { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    table.itens th { border-bottom: 1px solid #000; text-align: left; font-weight: bold; padding: 2px 0; }
-    table.itens td { padding: 1px 0; vertical-align: top; }
-    table.itens .qc { text-align: right; padding-right: 6px; white-space: nowrap; }
-    table.itens .vc { text-align: right; padding-left: 6px; white-space: nowrap; }
   </style></head><body>${corpo}</body></html>`;
 }
 
@@ -73,31 +64,21 @@ function cabecalho(titulo?: string): string {
     <div class="c b lg">${LOJA.linhas[0]}</div>
     <div class="c b">${LOJA.linhas[1]}</div>
     <div class="c b">${LOJA.linhas[2]}</div>
-    <div class="c sm">CNPJ: ${LOJA.cnpj}</div>
-    <div class="c sm">${LOJA.endereco}</div>
-    <div class="c sm">${LOJA.cidade}</div>
     <div class="c sm">${LOJA.telefones}</div>
     ${titulo ? `<hr><div class="c b">${titulo}</div>` : ""}`;
 }
 
 // ───────────────────────── Recibo de VENDA ─────────────────────────
 export function reciboVenda(v: VendaDetalhe): string {
-  const linhasItens = v.itens
+  const itens = v.itens
     .map((it) => {
       const q = Number(it.quantidade);
       const unit = q > 0 ? Number(it.total) / q : 0;
       const dev = Number(it.quantidadeDevolvida);
       return `
-        <tr>
-          <td class="qc">${formatarNumero(it.quantidade)}</td>
-          <td>${esc(it.descricao)}${
-            dev > 0
-              ? `<div class="sm">&gt;&gt; devolvido: ${formatarNumero(it.quantidadeDevolvida)}</div>`
-              : ""
-          }</td>
-          <td class="vc">${formatarMoeda(unit)}</td>
-          <td class="vc">${formatarMoeda(it.total)}</td>
-        </tr>`;
+        <div>${esc(it.descricao)}</div>
+        ${linha(`<span class="sm">${formatarNumero(it.quantidade)} x ${formatarMoeda(unit)}</span>`, formatarMoeda(it.total))}
+        ${dev > 0 ? `<div class="sm">&gt;&gt; devolvido: ${formatarNumero(it.quantidadeDevolvida)}</div>` : ""}`;
     })
     .join("");
 
@@ -123,24 +104,17 @@ export function reciboVenda(v: VendaDetalhe): string {
     : "";
 
   return envelope(`
-    ${cabecalho()}
+    ${cabecalho("RECIBO DE VENDA")}
+    ${linha(`Venda nº ${v.numero}`, formatarDataHora(v.dataVenda))}
+    <div>Cliente: ${esc(v.cliente?.nome ?? "CONSUMIDOR")}</div>
+    ${v.funcionario ? `<div>Vendedor: ${esc(v.funcionario.nome)}</div>` : ""}
     <hr>
-    <div class="campo"><span class="rot">Cliente</span>: ${esc(v.cliente?.nome ?? "CONSUMIDOR")}</div>
-    <div class="campo"><span class="rot">CPF</span>:</div>
-    <div class="campo"><span class="rot">Endereço</span>:</div>
-    <div class="sm mt">Venda nº ${v.numero} &middot; ${formatarDataHora(v.dataVenda)}</div>
-    <table class="itens">
-      <thead>
-        <tr><th class="qc">Quant</th><th>Descrição</th><th class="vc">Unit</th><th class="vc">Total</th></tr>
-      </thead>
-      <tbody>${linhasItens}</tbody>
-    </table>
+    ${itens}
     <hr>
     ${Number(v.desconto) > 0 ? linha("Subtotal", formatarMoeda(v.subtotal)) : ""}
     ${desconto}
     ${linha("Total a pagar", formatarMoeda(v.total), "b lg")}
     ${linha("Pagamento", esc(formas))}
-    ${v.funcionario ? `<div>Vendedor: ${esc(v.funcionario.nome)}</div>` : ""}
     ${secDevolucoes}
     <hr>
     <div class="b lg mt">COMPRADOR:</div>
