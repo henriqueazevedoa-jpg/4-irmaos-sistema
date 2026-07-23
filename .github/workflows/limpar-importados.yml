@@ -1,0 +1,24 @@
+name: Limpar produtos importados (uso único)
+
+# Remove da PRODUÇÃO os produtos que vieram da planilha do SIC (codigoExterno),
+# preservando os cadastrados manualmente. Roda manualmente (aba Actions).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  limpar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar dependências
+        run: npm install --include=dev
+      - name: Gerar Prisma Client
+        run: cd apps/api && npx prisma generate
+      - name: Limpar importados
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_BACKUP }}
+        run: cd apps/api && npx tsx scripts/limpar-importados.ts
