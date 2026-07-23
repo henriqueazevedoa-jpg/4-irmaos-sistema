@@ -134,7 +134,7 @@ model Funcionario {
 model Fornecedor {
   id                String     @id @default(cuid())
   tipoPessoa        TipoPessoa @default(PJ)
-  cpfCnpj           String     @unique
+  cpfCnpj           String?    @unique // opcional: fornecedores importados só com o nome
   razaoSocial       String
   nomeFantasia      String?
   inscricaoEstadual String?
@@ -192,9 +192,16 @@ model Produto {
   unidade            String     @default("UN") // UN, KG, M, M2, M3, SC (saco), CX, L...
   ncm                String? // classificação fiscal do produto
   cest               String?
+  origem             String? // origem da mercadoria (0-8), fiscal
+  csosn              String? // CSOSN (Simples Nacional), ex: 102
+  icmsAliquota       Decimal?   @db.Decimal(6, 2)
+  fabricante         String?
+  codigoExterno      String? // "Código" do sistema antigo (SIC), para importar sem duplicar
   categoriaId        String?
   fornecedorPadraoId String?
-  precoCusto         Decimal    @default(0) @db.Decimal(14, 4)
+  precoCusto         Decimal    @default(0) @db.Decimal(14, 4) // último custo de compra
+  custoMedio         Decimal    @default(0) @db.Decimal(14, 4) // custo médio ponderado
+  markup             Decimal    @default(0) @db.Decimal(9, 4) // margem-alvo (%) sobre o custo
   precoVenda         Decimal    @default(0) @db.Decimal(14, 2)
   saldoEstoque       Decimal    @default(0) @db.Decimal(14, 3)
   estoqueMinimo      Decimal    @default(0) @db.Decimal(14, 3)
@@ -211,6 +218,7 @@ model Produto {
 
   @@index([categoriaId])
   @@index([descricao])
+  @@index([codigoExterno])
 }
 
 // ───────────────────────────── Estoque (histórico de movimentos) ─────────────────────────────

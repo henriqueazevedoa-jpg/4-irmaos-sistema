@@ -7,7 +7,7 @@ import { paginacaoQuery, montarPaginacao } from "../lib/http.js";
 
 const corpoFornecedor = z.object({
   tipoPessoa: z.enum(["PF", "PJ"]).default("PJ"),
-  cpfCnpj: textoObrigatorio("Informe o CPF/CNPJ"),
+  cpfCnpj: textoOpcional,
   razaoSocial: textoObrigatorio("Informe a razão social / nome"),
   nomeFantasia: textoOpcional,
   inscricaoEstadual: textoOpcional,

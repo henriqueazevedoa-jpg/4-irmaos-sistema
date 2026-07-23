@@ -44,6 +44,8 @@ interface FormValores {
   categoriaId: string;
   fornecedorPadraoId: string;
   precoCusto: number;
+  custoMedio: number;
+  markup: number;
   precoVenda: number;
   estoqueMinimo: number;
   saldoEstoque: number;
@@ -58,6 +60,8 @@ const VAZIO: FormValores = {
   categoriaId: "",
   fornecedorPadraoId: "",
   precoCusto: 0,
+  custoMedio: 0,
+  markup: 0,
   precoVenda: 0,
   estoqueMinimo: 0,
   saldoEstoque: 0,
@@ -115,6 +119,8 @@ export function ProdutosPage() {
       categoriaId: p.categoriaId ?? "",
       fornecedorPadraoId: p.fornecedorPadraoId ?? "",
       precoCusto: Number(p.precoCusto) || 0,
+      custoMedio: Number(p.custoMedio) || 0,
+      markup: Number(p.markup) || 0,
       precoVenda: Number(p.precoVenda) || 0,
       estoqueMinimo: Number(p.estoqueMinimo) || 0,
       saldoEstoque: Number(p.saldoEstoque) || 0,
@@ -128,6 +134,12 @@ export function ProdutosPage() {
     const dados = editandoId ? resto : valores;
     salvar.mutate({ id: editandoId ?? undefined, dados });
   }
+
+  // Preço sugerido: maior custo (último × médio) + markup. Sobe passa o aumento,
+  // cai segura a margem. É só sugestão — o preço de venda continua manual.
+  const baseCusto = Math.max(form.values.precoCusto || 0, form.values.custoMedio || 0);
+  const precoSugerido =
+    baseCusto > 0 ? Math.round(baseCusto * (1 + (form.values.markup || 0) / 100) * 100) / 100 : 0;
 
   return (
     <Stack>
@@ -251,9 +263,10 @@ export function ProdutosPage() {
               }))}
               {...form.getInputProps("fornecedorPadraoId")}
             />
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <SimpleGrid cols={{ base: 1, sm: 3 }}>
               <NumberInput
-                label="Preço de custo"
+                label="Último custo"
+                description="Custo da última compra"
                 min={0}
                 prefix="R$ "
                 decimalScale={2}
@@ -262,6 +275,27 @@ export function ProdutosPage() {
                 {...form.getInputProps("precoCusto")}
               />
               <NumberInput
+                label="Custo médio"
+                description="Média ponderada"
+                min={0}
+                prefix="R$ "
+                decimalScale={2}
+                thousandSeparator="."
+                decimalSeparator=","
+                {...form.getInputProps("custoMedio")}
+              />
+              <NumberInput
+                label="Markup"
+                description="Margem-alvo sobre o custo"
+                min={0}
+                suffix=" %"
+                decimalScale={2}
+                {...form.getInputProps("markup")}
+              />
+            </SimpleGrid>
+            <Group align="flex-end" gap="sm" wrap="nowrap">
+              <NumberInput
+                style={{ flex: 1 }}
                 label="Preço de venda"
                 min={0}
                 prefix="R$ "
@@ -270,7 +304,16 @@ export function ProdutosPage() {
                 decimalSeparator=","
                 {...form.getInputProps("precoVenda")}
               />
-            </SimpleGrid>
+              <Tooltip label="Maior custo (último ou médio) + markup">
+                <Button
+                  variant="light"
+                  disabled={precoSugerido <= 0}
+                  onClick={() => form.setFieldValue("precoVenda", precoSugerido)}
+                >
+                  Usar sugerido: {formatarMoeda(precoSugerido)}
+                </Button>
+              </Tooltip>
+            </Group>
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <NumberInput
                 label="Estoque mínimo"

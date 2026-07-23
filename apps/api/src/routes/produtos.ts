@@ -15,6 +15,8 @@ const corpoProduto = z.object({
   categoriaId: textoOpcional,
   fornecedorPadraoId: textoOpcional,
   precoCusto: numeroNaoNegativo.default(0),
+  custoMedio: numeroNaoNegativo.default(0),
+  markup: numeroNaoNegativo.default(0),
   precoVenda: numeroNaoNegativo.default(0),
   estoqueMinimo: numeroNaoNegativo.default(0),
   ativo: z.boolean().optional(),

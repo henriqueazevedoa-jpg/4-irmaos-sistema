@@ -324,9 +324,16 @@ export interface Produto {
   unidade: string;
   ncm: string | null;
   cest: string | null;
+  origem: string | null;
+  csosn: string | null;
+  icmsAliquota: string | null;
+  fabricante: string | null;
+  codigoExterno: string | null;
   categoriaId: string | null;
   fornecedorPadraoId: string | null;
   precoCusto: string;
+  custoMedio: string;
+  markup: string;
   precoVenda: string;
   saldoEstoque: string;
   estoqueMinimo: string;
