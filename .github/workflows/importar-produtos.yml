@@ -1,0 +1,34 @@
+name: Importar produtos (uso único)
+
+# Importa a planilha de produtos do SIC para o banco de PRODUÇÃO.
+# Roda manualmente (aba Actions → "Run workflow"). Usa o mesmo segredo do backup
+# (DATABASE_URL_BACKUP = Session pooler do Supabase). É idempotente: pode rodar de
+# novo que só adiciona o que falta. Depois de usar, este workflow e o arquivo de
+# dados podem ser removidos.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: npm install --include=dev
+
+      - name: Gerar Prisma Client
+        run: cd apps/api && npx prisma generate
+
+      - name: Descompactar dados
+        run: gunzip -c apps/api/scripts/produtos-import.json.gz > /tmp/produtos-import.json
+
+      - name: Importar produtos
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_BACKUP }}
+        run: cd apps/api && npx tsx scripts/importar-produtos.ts /tmp/produtos-import.json
