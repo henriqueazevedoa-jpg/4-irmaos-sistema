@@ -12,11 +12,12 @@ import {
   Table,
   Center,
   Loader,
+  Button,
 } from "@mantine/core";
 import { IconBox, IconTruck, IconUsers, IconAlertTriangle } from "@tabler/icons-react";
 import { api } from "../lib/api";
 import { formatarNumero } from "../lib/formato";
-import type { Produto, RespostaLista } from "../lib/tipos";
+import type { Reposicao } from "../lib/tipos";
 
 function useTotal(recurso: string) {
   return useQuery({
@@ -65,14 +66,14 @@ export function DashboardPage() {
   const clientes = useTotal("clientes");
   const fornecedores = useTotal("fornecedores");
 
-  const { data: listaProdutos, isLoading } = useQuery({
-    queryKey: ["produtos", "estoque-baixo"],
-    queryFn: () => api.get<RespostaLista<Produto>>("/produtos?porPagina=100"),
+  const { data: reposicao, isLoading } = useQuery({
+    queryKey: ["reposicao"],
+    queryFn: () => api.get<Reposicao>("/produtos/reposicao"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
-  const estoqueBaixo = (listaProdutos?.dados ?? []).filter(
-    (p) => Number(p.saldoEstoque) <= Number(p.estoqueMinimo)
-  );
+  const estoqueBaixo = reposicao?.itens ?? [];
 
   return (
     <Stack gap="lg">
@@ -106,15 +107,22 @@ export function DashboardPage() {
       </SimpleGrid>
 
       <Card withBorder padding="lg" radius="md">
-        <Group mb="sm">
-          <ThemeIcon variant="light" color="red" radius="md">
-            <IconAlertTriangle size={18} />
-          </ThemeIcon>
-          <Title order={4}>Estoque baixo</Title>
+        <Group mb="sm" justify="space-between">
+          <Group>
+            <ThemeIcon variant="light" color="red" radius="md">
+              <IconAlertTriangle size={18} />
+            </ThemeIcon>
+            <Title order={4}>Precisa repor</Title>
+            {estoqueBaixo.length > 0 && (
+              <Badge color="red" variant="light">
+                {estoqueBaixo.length}
+              </Badge>
+            )}
+          </Group>
           {estoqueBaixo.length > 0 && (
-            <Badge color="red" variant="light">
-              {estoqueBaixo.length}
-            </Badge>
+            <Button component={Link} to="/reposicao" variant="light" size="xs">
+              Montar pedido de compra
+            </Button>
           )}
         </Group>
 
@@ -123,32 +131,39 @@ export function DashboardPage() {
             <Loader size="sm" />
           </Center>
         ) : estoqueBaixo.length === 0 ? (
-          <Text c="dimmed">Nenhum produto abaixo do estoque mínimo. 👍</Text>
+          <Text c="dimmed">Nenhum produto no mínimo ou abaixo. 👍</Text>
         ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Produto</Table.Th>
-                <Table.Th>Saldo</Table.Th>
-                <Table.Th>Mínimo</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {estoqueBaixo.map((p) => (
-                <Table.Tr key={p.id}>
-                  <Table.Td>{p.descricao}</Table.Td>
-                  <Table.Td>
-                    <Badge color="red" variant="light">
-                      {formatarNumero(p.saldoEstoque)} {p.unidade}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    {formatarNumero(p.estoqueMinimo)} {p.unidade}
-                  </Table.Td>
+          <>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Produto</Table.Th>
+                  <Table.Th>Saldo</Table.Th>
+                  <Table.Th>Mínimo</Table.Th>
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {estoqueBaixo.slice(0, 8).map((p) => (
+                  <Table.Tr key={p.id}>
+                    <Table.Td>{p.descricao}</Table.Td>
+                    <Table.Td>
+                      <Badge color={p.zerado ? "red" : "orange"} variant="light">
+                        {formatarNumero(p.saldoEstoque)} {p.unidade}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      {formatarNumero(p.estoqueMinimo)} {p.unidade}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+            {estoqueBaixo.length > 8 && (
+              <Text c="dimmed" size="sm" mt="xs">
+                + {estoqueBaixo.length - 8} outros — veja todos em “Montar pedido de compra”.
+              </Text>
+            )}
+          </>
         )}
       </Card>
     </Stack>

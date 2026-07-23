@@ -67,6 +67,24 @@ export interface Funcionario {
   ativo: boolean;
 }
 
+export interface ItemReposicao {
+  id: string;
+  descricao: string;
+  sku: string | null;
+  unidade: string;
+  saldoEstoque: string;
+  estoqueMinimo: string;
+  precoCusto: string;
+  zerado: boolean;
+  quantidadeSugerida: number;
+  fornecedor: { id: string; nome: string } | null;
+}
+
+export interface Reposicao {
+  itens: ItemReposicao[];
+  resumo: { total: number; zerados: number; baixos: number; custoEstimado: number };
+}
+
 export interface ProdutoOpcao {
   id: string;
   descricao: string;

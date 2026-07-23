@@ -71,6 +71,51 @@ export async function rotasProdutos(app: FastifyInstance) {
     return { dados, paginacao: montarPaginacao(pagina, porPagina, total) };
   });
 
+  // Reposição: produtos ativos com estoque no mínimo ou abaixo, já com a
+  // quantidade sugerida de compra e o fornecedor padrão (para montar o pedido).
+  app.get("/produtos/reposicao", async () => {
+    const produtos = await prisma.produto.findMany({
+      where: { ativo: true, estoqueMinimo: { gt: 0 } },
+      include: { fornecedorPadrao: { select: { id: true, razaoSocial: true, nomeFantasia: true } } },
+      orderBy: { descricao: "asc" },
+    });
+
+    const itens = produtos
+      .filter((p) => Number(p.saldoEstoque) <= Number(p.estoqueMinimo))
+      .map((p) => {
+        const saldo = Number(p.saldoEstoque);
+        const minimo = Number(p.estoqueMinimo);
+        // Sugestão: repor até o dobro do mínimo (um nível de trabalho confortável).
+        const sugestao = Math.max(1, Math.ceil(minimo * 2 - saldo));
+        return {
+          id: p.id,
+          descricao: p.descricao,
+          sku: p.sku,
+          unidade: p.unidade,
+          saldoEstoque: p.saldoEstoque,
+          estoqueMinimo: p.estoqueMinimo,
+          precoCusto: p.precoCusto,
+          zerado: saldo <= 0,
+          quantidadeSugerida: sugestao,
+          fornecedor: p.fornecedorPadrao
+            ? {
+                id: p.fornecedorPadrao.id,
+                nome: p.fornecedorPadrao.nomeFantasia || p.fornecedorPadrao.razaoSocial,
+              }
+            : null,
+        };
+      });
+
+    const resumo = {
+      total: itens.length,
+      zerados: itens.filter((i) => i.zerado).length,
+      baixos: itens.filter((i) => !i.zerado).length,
+      custoEstimado: itens.reduce((s, i) => s + i.quantidadeSugerida * Number(i.precoCusto), 0),
+    };
+
+    return { itens, resumo };
+  });
+
   // Lista enxuta de produtos ativos, para campos de seleção e para o PDV.
   app.get("/produtos/opcoes", async () => {
     const dados = await prisma.produto.findMany({

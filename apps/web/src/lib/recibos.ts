@@ -324,3 +324,59 @@ export function reciboDevolucao(v: VendaDetalhe, d: DevolucaoImpressao): string 
     <div class="c sm">*** Documento sem valor fiscal ***</div>
   `);
 }
+
+// ───────────────────── Pedido de compra (reposição) em A4 ────────────
+interface ItemPedidoCompra {
+  descricao: string;
+  sku: string | null;
+  unidade: string;
+  quantidade: number;
+  precoCusto: string;
+}
+
+export function pedidoCompraA4(fornecedor: string, itens: ItemPedidoCompra[]): string {
+  const linhas = itens
+    .map(
+      (it) => `
+      <tr>
+        <td>${esc(it.descricao)}${it.sku ? ` <span style="color:#999">(${esc(it.sku)})</span>` : ""}</td>
+        <td class="r">${formatarNumero(it.quantidade)} ${esc(it.unidade)}</td>
+        <td class="r">${formatarMoeda(it.precoCusto)}</td>
+        <td class="r">${formatarMoeda(Number(it.precoCusto) * it.quantidade)}</td>
+      </tr>`
+    )
+    .join("");
+  const total = itens.reduce((s, it) => s + Number(it.precoCusto) * it.quantidade, 0);
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Pedido de compra</title><style>
+    @page { size: A4 portrait; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #222; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cab { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #b5451f; padding-bottom: 10px; }
+    .cab h1 { font-size: 22px; margin: 0; color: #b5451f; letter-spacing: .5px; }
+    .cab .sub { color: #888; font-size: 12px; }
+    .cab .emit { color: #888; font-size: 11px; text-align: right; }
+    .titulo { text-align: center; font-size: 13px; font-weight: bold; letter-spacing: 3px; margin: 20px 0 12px; color: #444; }
+    .info { font-size: 13px; margin-bottom: 4px; }
+    .info b { color: #666; margin-right: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e2e2e2; padding: 6px 9px; text-align: left; }
+    th { background: #f5f5f5; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #666; font-weight: bold; }
+    td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+    tfoot td { background: #f5f5f5; font-weight: bold; }
+    .rodape { margin-top: 24px; color: #999; font-size: 11px; }
+  </style></head><body>
+    <div class="cab">
+      <div><h1>${LOJA.nome}</h1><div class="sub">${LOJA.sub}</div></div>
+      <div class="emit">Emitido em<br>${formatarDataHora(new Date().toISOString())}</div>
+    </div>
+    <div class="titulo">PEDIDO DE COMPRA</div>
+    <div class="info"><b>Fornecedor:</b> ${esc(fornecedor)}</div>
+    <table>
+      <thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Custo unit. (est.)</th><th class="r">Subtotal (est.)</th></tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr><td colspan="3">Total estimado</td><td class="r">${formatarMoeda(total)}</td></tr></tfoot>
+    </table>
+    <div class="rodape">Os valores de custo são estimativos (baseados na última compra) e estão sujeitos a confirmação com o fornecedor.</div>
+  </body></html>`;
+}
