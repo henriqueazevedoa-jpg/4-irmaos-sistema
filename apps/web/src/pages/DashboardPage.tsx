@@ -12,7 +12,6 @@ import {
   Table,
   Center,
   Loader,
-  Button,
 } from "@mantine/core";
 import { IconBox, IconTruck, IconUsers, IconAlertTriangle } from "@tabler/icons-react";
 import { api } from "../lib/api";
@@ -107,22 +106,15 @@ export function DashboardPage() {
       </SimpleGrid>
 
       <Card withBorder padding="lg" radius="md">
-        <Group mb="sm" justify="space-between">
-          <Group>
-            <ThemeIcon variant="light" color="red" radius="md">
-              <IconAlertTriangle size={18} />
-            </ThemeIcon>
-            <Title order={4}>Precisa repor</Title>
-            {estoqueBaixo.length > 0 && (
-              <Badge color="red" variant="light">
-                {estoqueBaixo.length}
-              </Badge>
-            )}
-          </Group>
+        <Group mb="sm">
+          <ThemeIcon variant="light" color="red" radius="md">
+            <IconAlertTriangle size={18} />
+          </ThemeIcon>
+          <Title order={4}>Estoque baixo</Title>
           {estoqueBaixo.length > 0 && (
-            <Button component={Link} to="/painel" variant="light" size="xs">
-              Abrir painel
-            </Button>
+            <Badge color="red" variant="light">
+              {estoqueBaixo.length}
+            </Badge>
           )}
         </Group>
 
@@ -160,7 +152,7 @@ export function DashboardPage() {
             </Table>
             {estoqueBaixo.length > 8 && (
               <Text c="dimmed" size="sm" mt="xs">
-                + {estoqueBaixo.length - 8} outros — veja todos em “Montar pedido de compra”.
+                + {estoqueBaixo.length - 8} outros produtos abaixo do mínimo.
               </Text>
             )}
           </>
