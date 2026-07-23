@@ -116,6 +116,94 @@ export async function rotasProdutos(app: FastifyInstance) {
     return { itens, resumo };
   });
 
+  // Painel de gestão: cada produto ativo com curva ABC, vendas no período,
+  // cobertura (dias de estoque), saldo/mínimo e sugestão de compra.
+  app.get("/produtos/painel", async (req) => {
+    const { dias } = z
+      .object({ dias: z.coerce.number().int().positive().max(730).default(90) })
+      .parse(req.query);
+    const desde = new Date(Date.now() - dias * 86_400_000);
+
+    const [produtos, vendas, ultimas] = await Promise.all([
+      prisma.produto.findMany({
+        where: { ativo: true },
+        include: {
+          categoria: { select: { nome: true } },
+          fornecedorPadrao: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
+        },
+        orderBy: { descricao: "asc" },
+      }),
+      // Vendas por produto no período (só vendas finalizadas)
+      prisma.vendaItem.groupBy({
+        by: ["produtoId"],
+        where: { venda: { status: "FINALIZADA", dataVenda: { gte: desde } } },
+        _sum: { quantidade: true, total: true },
+      }),
+      // Data da última venda de cada produto (do livro de estoque)
+      prisma.estoqueMovimento.groupBy({
+        by: ["produtoId"],
+        where: { origem: "VENDA" },
+        _max: { criadoEm: true },
+      }),
+    ]);
+
+    const mapaVendas = new Map(
+      vendas.map((v) => [
+        v.produtoId,
+        { qtd: Number(v._sum.quantidade ?? 0), valor: Number(v._sum.total ?? 0) },
+      ])
+    );
+    const mapaUltima = new Map(ultimas.map((u) => [u.produtoId, u._max.criadoEm]));
+
+    const base = produtos.map((p) => {
+      const v = mapaVendas.get(p.id) ?? { qtd: 0, valor: 0 };
+      const saldo = Number(p.saldoEstoque);
+      const minimo = Number(p.estoqueMinimo);
+      const consumoDia = v.qtd / dias;
+      const diasCobertura = consumoDia > 0 ? Math.round(saldo / consumoDia) : null;
+      const sugestaoCompra =
+        minimo > 0 && saldo <= minimo ? Math.max(1, Math.ceil(minimo * 2 - saldo)) : 0;
+      return { p, v, saldo, minimo, diasCobertura, sugestaoCompra };
+    });
+
+    // Curva ABC pelo faturamento do período (Pareto). Sem venda = classe própria.
+    const comVenda = base.filter((b) => b.v.valor > 0).sort((a, b) => b.v.valor - a.v.valor);
+    const totalValor = comVenda.reduce((s, b) => s + b.v.valor, 0);
+    const classe = new Map<string, string>();
+    let acumulado = 0;
+    for (const b of comVenda) {
+      acumulado += b.v.valor;
+      const perc = totalValor > 0 ? acumulado / totalValor : 1;
+      classe.set(b.p.id, perc <= 0.8 ? "A" : perc <= 0.95 ? "B" : "C");
+    }
+
+    const itens = base.map((b) => ({
+      id: b.p.id,
+      descricao: b.p.descricao,
+      sku: b.p.sku,
+      unidade: b.p.unidade,
+      categoria: b.p.categoria?.nome ?? null,
+      fornecedor: b.p.fornecedorPadrao
+        ? {
+            id: b.p.fornecedorPadrao.id,
+            nome: b.p.fornecedorPadrao.nomeFantasia || b.p.fornecedorPadrao.razaoSocial,
+          }
+        : null,
+      saldoEstoque: b.p.saldoEstoque,
+      estoqueMinimo: b.p.estoqueMinimo,
+      precoCusto: b.p.precoCusto,
+      precoVenda: b.p.precoVenda,
+      vendaQtd: b.v.qtd,
+      vendaValor: b.v.valor,
+      ultimaVenda: mapaUltima.get(b.p.id) ?? null,
+      diasCobertura: b.diasCobertura,
+      classeAbc: classe.get(b.p.id) ?? "SEM_VENDA",
+      sugestaoCompra: b.sugestaoCompra,
+    }));
+
+    return { itens, dias };
+  });
+
   // Lista enxuta de produtos ativos, para campos de seleção e para o PDV.
   app.get("/produtos/opcoes", async () => {
     const dados = await prisma.produto.findMany({

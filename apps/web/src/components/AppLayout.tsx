@@ -11,7 +11,7 @@ import {
   IconFileImport,
   IconChartBar,
   IconCashBanknote,
-  IconAlertTriangle,
+  IconLayoutGrid,
 } from "@tabler/icons-react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
@@ -22,7 +22,7 @@ const ITENS = [
   { rotulo: "Vendas", para: "/vendas", icone: IconShoppingCart },
   { rotulo: "Caixa", para: "/caixa", icone: IconCashBanknote },
   { rotulo: "Produtos", para: "/produtos", icone: IconBox },
-  { rotulo: "Reposição", para: "/reposicao", icone: IconAlertTriangle },
+  { rotulo: "Painel", para: "/painel", icone: IconLayoutGrid },
   { rotulo: "Entradas", para: "/entradas", icone: IconFileImport },
   { rotulo: "Fornecedores", para: "/fornecedores", icone: IconTruck },
   { rotulo: "Clientes", para: "/clientes", icone: IconUsers },
@@ -67,7 +67,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   radius="sm"
                   leftSection={<item.icone size={16} />}
                   rightSection={
-                    item.para === "/reposicao" && totalReposicao > 0 ? (
+                    item.para === "/painel" && totalReposicao > 0 ? (
                       <Badge size="sm" circle color="red" variant="filled">
                         {totalReposicao}
                       </Badge>

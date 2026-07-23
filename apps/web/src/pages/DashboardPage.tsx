@@ -120,8 +120,8 @@ export function DashboardPage() {
             )}
           </Group>
           {estoqueBaixo.length > 0 && (
-            <Button component={Link} to="/reposicao" variant="light" size="xs">
-              Montar pedido de compra
+            <Button component={Link} to="/painel" variant="light" size="xs">
+              Abrir painel
             </Button>
           )}
         </Group>

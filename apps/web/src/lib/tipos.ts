@@ -85,6 +85,32 @@ export interface Reposicao {
   resumo: { total: number; zerados: number; baixos: number; custoEstimado: number };
 }
 
+export type ClasseAbc = "A" | "B" | "C" | "SEM_VENDA";
+
+export interface ItemPainel {
+  id: string;
+  descricao: string;
+  sku: string | null;
+  unidade: string;
+  categoria: string | null;
+  fornecedor: { id: string; nome: string } | null;
+  saldoEstoque: string;
+  estoqueMinimo: string;
+  precoCusto: string;
+  precoVenda: string;
+  vendaQtd: number;
+  vendaValor: number;
+  ultimaVenda: string | null;
+  diasCobertura: number | null;
+  classeAbc: ClasseAbc;
+  sugestaoCompra: number;
+}
+
+export interface PainelProdutos {
+  itens: ItemPainel[];
+  dias: number;
+}
+
 export interface ProdutoOpcao {
   id: string;
   descricao: string;

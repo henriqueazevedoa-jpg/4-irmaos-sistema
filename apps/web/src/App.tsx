@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProdutosPage } from "./pages/ProdutosPage";
-import { ReposicaoPage } from "./pages/ReposicaoPage";
+import { PainelProdutosPage } from "./pages/PainelProdutosPage";
 import { FornecedoresPage } from "./pages/FornecedoresPage";
 import { ClientesPage } from "./pages/ClientesPage";
 import { FuncionariosPage } from "./pages/FuncionariosPage";
@@ -23,7 +23,7 @@ export function App() {
         <Route path="/vendas/nova" element={<PDVPage />} />
         <Route path="/vendas/historico" element={<VendasPage />} />
         <Route path="/produtos" element={<ProdutosPage />} />
-        <Route path="/reposicao" element={<ReposicaoPage />} />
+        <Route path="/painel" element={<PainelProdutosPage />} />
         <Route path="/entradas" element={<NotasEntradaPage />} />
         <Route path="/entradas/:id" element={<NotaDetalhePage />} />
         <Route path="/fornecedores" element={<FornecedoresPage />} />
