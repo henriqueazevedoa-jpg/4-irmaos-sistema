@@ -7,8 +7,13 @@ formato brasileiro, unidades bagunçadas, GTIN inválido, duplicados).
 Uso:
     python3 limpar-planilha-produtos.py "/caminho/Plan1 PRODUTOS COMPLETA.xlsx" saida.json
 """
-import sys, json
+import sys, json, re
 from openpyxl import load_workbook
+
+
+def norm_nome(s):
+    s = re.sub(r"[^A-Z0-9 ]", " ", str(s).upper())
+    return re.sub(r"\s+", " ", s).strip()
 
 UNI_MAP = {"UND": "UN", "UNID": "UN", "UNIDADE": "UN", "UN.": "UN", "PC.": "PC", "PÇ": "PC", "PCS": "PC"}
 
@@ -113,6 +118,21 @@ def main():
         if fornecedor:
             fornecedores.add(fornecedor)
 
+        # Preço: o "Preço de venda" e o "Custo médio" da planilha vêm corrompidos
+        # (vírgula perdida na exportação do SIC) em ~7% dos itens. O último custo e
+        # o markup (Lucro) estão corretos, então reconstruímos o preço a partir deles.
+        custo = num(g(r, "Preço de custo")) or 0
+        markup = num(g(r, "Lucro"))
+        venda_gravada = num(g(r, "Preço de venda")) or 0
+        custo_ok = 0 < custo <= 10000  # acima disso o próprio custo está corrompido
+        if custo_ok and markup is not None:
+            preco_venda = round(custo * (1 + markup / 100), 2)
+        elif 0 < venda_gravada <= 10000:
+            preco_venda = venda_gravada  # custo ruim, mas o preço gravado é plausível
+        else:
+            preco_venda = 0  # sem base confiável — a loja preenche depois
+        custo_final = custo if custo_ok else 0
+
         produtos.append({
             "codigoExterno": codigo,
             "descricao": descricao,
@@ -124,20 +144,30 @@ def main():
             "csosn": code_str(g(r, "Cst")),
             "icmsAliquota": num(g(r, "Icms")),
             "fabricante": texto(g(r, "Fabricante")),
-            "precoCusto": num(g(r, "Preço de custo")) or 0,
-            "custoMedio": num(g(r, "Custo médio")) or 0,
-            "markup": num(g(r, "Lucro")) or 0,
-            "precoVenda": num(g(r, "Preço de venda")) or 0,
+            "precoCusto": custo_final,
+            "custoMedio": custo_final,  # inicializa com o último custo (coluna 'Custo médio' não é confiável)
+            "markup": markup or 0,
+            "precoVenda": preco_venda,
             "saldoEstoque": num(g(r, "Quantidade")) or 0,
             "estoqueMinimo": num(g(r, "Estoque mínimo")) or 0,
             "fornecedor": fornecedor,
         })
 
-    with open(saida, "w", encoding="utf-8") as f:
-        json.dump({"produtos": produtos, "fornecedores": sorted(fornecedores)}, f, ensure_ascii=False)
+    # Dedup por nome normalizado: mantém o item com maior estoque de cada grupo.
+    melhor = {}
+    for p in produtos:
+        k = norm_nome(p["descricao"])
+        if k not in melhor or (p["saldoEstoque"] or 0) > (melhor[k]["saldoEstoque"] or 0):
+            melhor[k] = p
+    dedup = list(melhor.values())
+    removidos_nome = len(produtos) - len(dedup)
 
-    print(f"Produtos: {len(produtos)} | Fornecedores: {len(fornecedores)} | "
-          f"pulados sem nome: {pulados_sem_nome} | duplicados ignorados: {pulados_dup}")
+    with open(saida, "w", encoding="utf-8") as f:
+        json.dump({"produtos": dedup, "fornecedores": sorted(fornecedores)}, f, ensure_ascii=False)
+
+    print(f"Produtos: {len(dedup)} | Fornecedores: {len(fornecedores)} | "
+          f"pulados sem nome: {pulados_sem_nome} | dup. de código: {pulados_dup} | "
+          f"dup. de nome removidos: {removidos_nome}")
 
 
 if __name__ == "__main__":
